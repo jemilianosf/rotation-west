@@ -328,12 +328,18 @@ all_vs_all_overlap_by_element %>%
 
 
 Notes 
+
+Overlap of ChIP and CutNRun
 - I think the disparity is because ChIP peaks are larger than CutNRun
 - Because ChIP peaks are wider than CutNRun peaks, we expect that for peaks that are recovered in both assays, most bps in ChIP are not in CutNRun
 - Doing overlaps by element addresses this issue
 
+Within reps CutNRun
+- 
+
 
 Next steps 
 - Try merging Cut-N-Run peaks if they are close
+- Try phyper or bedtools fisher for overlaps
 - Check https://bioconductor.org/packages/release/bioc/vignettes/ChIPpeakAnno/inst/doc/pipeline.html
 
