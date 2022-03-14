@@ -1,0 +1,41 @@
+---
+title: "Zic cutnrun notes"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Zic cut n run pipeline notes
+
+Experiment details
+
+Cut-n-run experiment 
+Zic1/2 Ab
+
+Three timepoints:
+- Day 3
+- Day 5
+- Day 7
+
+- Three reps per timepoint
+
+# Pipeline 
+
+Is there anything particular of cutnrun reads than makes it necessary to use splice aware mapping?
+
+Mapping with STAR - default 
+
+
+```{bash}
+NAME1=R109-D1Z_S9_L001_R1_001
+NAME2=R109-D1Z_S9_L001_R2_001
+RD=/data/westlab/jes157/data/fastq/cutnrun_zic
+```
+
+
+
+
+
+
