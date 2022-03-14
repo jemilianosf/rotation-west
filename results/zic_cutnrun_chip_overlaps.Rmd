@@ -335,8 +335,11 @@ Overlap of ChIP and CutNRun
 - Doing overlaps by element addresses this issue
 
 Within reps CutNRun
-- 
-
+- Both overlaps by basepairs and by element give similar results because when comparing replicates, both sets of regions are of similar size and widths. 
+- However, because regions are small, there might be a case when a single "real peak" is detected in two different experiments, but the reported regions are adjacent if not overlapping.
+- Alternatively, there might be more experimental noise:
+  - looking at other CutNRun datasets would help
+  - Using more stringent cutoff values, we would expect a higher overlap
 
 Next steps 
 - Try merging Cut-N-Run peaks if they are close
