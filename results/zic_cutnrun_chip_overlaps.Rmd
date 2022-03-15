@@ -53,7 +53,7 @@ library(rtracklayer)
 library(tidyverse)
 
 cutnrun_peaks_dir <- "../data_output/cutnrun_zic/seacr_peaks/"
-cutnrun_peaks_files <- list.files(cutnrun_peaks_dir)
+cutnrun_peaks_files <- list.files(cutnrun_peaks_dir,pattern = ".bed")
 cutnrun_peaks_full <- paste0(cutnrun_peaks_dir,cutnrun_peaks_files)
 
 
@@ -67,7 +67,7 @@ names(cutnrun_peaks_granges) <- paste0("cutnrun-",names(cutnrun_peaks_granges))
 
 ## load ChIP peaks
 ```{r}
-chip_peaks_dir <- "../data_output/bed/"
+chip_peaks_dir <- "../data_output/bed/chip_zic/"
 chip_peaks_files <- list.files(chip_peaks_dir, pattern = "mm10.bed")
 chip_peaks_full <- paste0(chip_peaks_dir,chip_peaks_files)
 chip_names <- str_split(chip_peaks_files,"_",n=3) %>% map_chr(2)
