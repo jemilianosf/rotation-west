@@ -1,0 +1,86 @@
+---
+title: "zic_cutnrun_deseq"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Differential binding analysis of Zic CUT&RUN data
+
+Steps:
+- Get union of peaks across replicates / timepoints
+- Get counts matrix
+- Test
+
+# Get union of peaks
+
+## load cutnrun peaks as granges objects
+```{r}
+library(rtracklayer)
+library(tidyverse)
+
+cutnrun_peaks_dir <- "../data_output/cutnrun_zic/seacr_peaks/"
+cutnrun_peaks_files <- list.files(cutnrun_peaks_dir,pattern = ".bed")
+cutnrun_peaks_full <- paste0(cutnrun_peaks_dir,cutnrun_peaks_files)
+
+
+cutnrun_peaks_granges <- lapply(cutnrun_peaks_full, import.bedGraph)
+
+names(cutnrun_peaks_granges) <- str_split(cutnrun_peaks_files,"_",n=2) %>% map_chr(1)
+
+names(cutnrun_peaks_granges) <- paste0("cutnrun-",names(cutnrun_peaks_granges))
+
+```
+
+## get union
+
+```{r}
+cutnrun_peaks_union_granges <- GenomicRanges::union(unlist(GRangesList(cutnrun_peaks_granges)),
+                                                    unlist(GRangesList(cutnrun_peaks_granges)))
+
+
+
+```
+
+## remove peaks that overlap blacklist
+
+```{r}
+mm10_blacklist <- import("../data_input/bed/mm10-blacklist.v2.bed.gz")
+cutnrun_peaks_union_granges <- cutnrun_peaks_union_granges[!overlapsAny(cutnrun_peaks_union_granges, mm10_blacklist)]
+
+```
+
+
+
+```{r}
+elementMetadata(distanceToNearest(cutnrun_peaks_union_granges))$distance %>%
+  summary()
+
+```
+
+```{r}
+summary(width(cutnrun_peaks_union_granges))
+```
+
+```{r}
+sum(width(cutnrun_peaks_union_granges) > 10000)
+```
+
+```{r eval = FALSE}
+export.bed(cutnrun_peaks_union_granges,"../data_output/bed/cutnrun__zic_seacr_peaks_union.bed")
+```
+
+
+# Get counts matrix
+```{r}
+library(csaw)
+
+
+```
+
+
+
+
+# Test
