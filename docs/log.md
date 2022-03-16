@@ -26,4 +26,13 @@
 - Read grant
 - Overlap processed ChIP and CutNRun
 
+#2022-03-16
+- Why is ChIP pipeline not working on some samples
+It was still due to an earlier version of the pipeline.
+- Run ChIP pipeline
+- Run SEACR for all samples
+- CutNRun DESEq
+- Meetings
+
+- Why is seacr  not working on bash scripts?
 
