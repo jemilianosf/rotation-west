@@ -69,18 +69,76 @@ sum(width(cutnrun_peaks_union_granges) > 10000)
 ```
 
 ```{r eval = FALSE}
-export.bed(cutnrun_peaks_union_granges,"../data_output/bed/cutnrun__zic_seacr_peaks_union.bed")
+export.bed(cutnrun_peaks_union_granges,"../data_output/bed/cutnrun_zic_seacr_peaks_union.bed")
 ```
 
 
 # Get counts matrix
 ```{r}
 library(csaw)
+bam_files <- list.files("../data_output/cutnrun_zic/bam/",pattern = ".bam$",full.names = T)
+counts <- csaw::regionCounts(bam.files = bam_files,
+                   regions = cutnrun_peaks_union_granges,
+                   param = csaw::readParam(dedup = TRUE, minq = 20))
+
+colnames(counts) <- str_split(basename(bam_files),"_",2) %>% map_chr(1)
+
+colData(counts)$rep <- str_split(colnames(counts),"-") %>% map_chr(1)
+colData(counts)$time <- str_split(colnames(counts),"-") %>% map_chr(2)
+
+```
+
+## Get DESeq object
+
+```{r}
+library(DESeq2)
+
+deseq_obj <- DESeqDataSet(counts, design = ~ time)
 
 
 ```
 
+Prefiltering
+```{r}
+keep <- rowSums(counts(deseq_obj)) >= 10
+deseq_obj <- deseq_obj[keep,]
 
+```
 
 
 # Test
+LRT test that is conceptually similar to ANOVA
+```{r}
+deseq_obj <- DESeq(deseq_obj, test="LRT", reduced=~1)
+res <- results(deseq_obj)
+
+```
+
+```{r}
+res %>%
+  as_tibble() %>%
+  ggplot(aes(padj)) +
+  geom_histogram()
+```
+
+```{r}
+res %>%
+  as_tibble() %>%
+  ggplot(aes(log2FoldChange, -10*log10(padj))) +
+  geom_point()
+```
+```{r}
+res %>%
+  as_tibble() %>%
+ggplot(aes(x = baseMean,log2FoldChange)) +
+  geom_point()
+```
+
+# Plots
+
+## Volcano / MA
+
+## Heatmap
+
+## Aleuvial 
+
