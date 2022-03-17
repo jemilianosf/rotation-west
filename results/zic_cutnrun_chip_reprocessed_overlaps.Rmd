@@ -1,0 +1,948 @@
+---
+title: "zic_cutnrun_chip_reprocessed_overlaps"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+
+How similar are in vitro and in vivo Zic peaks?
+
+- CutNRun overlap with ChIP peaks
+  - Load CutNrun and Chip peaks:
+    - CutNrun:
+      - seacr peaks
+      - macs peaks
+    - ChIP:
+      - seacr peaks
+      - macs peaks
+      - previous macs peaks
+  - Overlap all vs all
+  - Plot overlaps:
+    - CutNrun:
+      - seacr between replicates
+      - macs between replicates
+      - seacr vs macs
+    - ChIP:
+      - seacr between replicates
+      - macs between replicates
+      - seacr vs macs
+      - new vs old macs
+    - CutNrun vs Chip:
+      - seacr
+      - macs
+      
+
+# Load CutNrun and Chip peaks
+
+## load cutnrun peaks as granges objects seacr
+```{r}
+library(rtracklayer)
+library(tidyverse)
+
+cutnrun_seacr_dir <- "../data_output/cutnrun_zic/seacr_peaks/"
+cutnrun_seacr_files <- list.files(cutnrun_seacr_dir,pattern = ".bed")
+cutnrun_seacr_full <- paste0(cutnrun_seacr_dir,cutnrun_seacr_files)
+
+
+cutnrun_seacr_granges <- lapply(cutnrun_seacr_full, import.bedGraph)
+
+names(cutnrun_seacr_granges) <- str_split(cutnrun_seacr_files,"_",n=2) %>% map_chr(1)
+
+names(cutnrun_seacr_granges) <- paste0("cutnrun-seacr-",names(cutnrun_seacr_granges))
+
+```
+
+macs
+```{r}
+
+cutnrun_macs_dir <- "../data_output/cutnrun_zic/macs_peaks/"
+cutnrun_macs_files <- list.files(cutnrun_macs_dir, pattern = "narrowPeak$")
+cutnrun_macs_full <- paste0(cutnrun_macs_dir,cutnrun_macs_files)
+
+cutnrun_macs_granges <- lapply(cutnrun_macs_full,
+                               import,
+                               format = "BED",
+                               extraCols = c(singnalValue = "numeric",
+                                             pValue = "numeric",
+                                             qValue = "numeric",
+                                             peak = "integer"))
+
+names(cutnrun_macs_granges) <- str_split(cutnrun_macs_files,"_",n=2) %>% map_chr(1)
+
+names(cutnrun_macs_granges) <- paste0("cutnrun-macs-",names(cutnrun_macs_granges))
+
+```
+
+
+## load ChIP peaks - previous macs
+```{r}
+chip_peaks_dir <- "../data_output/bed/"
+chip_peaks_files <- list.files(chip_peaks_dir, pattern = "mm10.bed")
+chip_peaks_full <- paste0(chip_peaks_dir,chip_peaks_files)
+chip_names <- str_split(chip_peaks_files,"_",n=3) %>% map_chr(2)
+chip_names <- paste0("ChIP-macs1-","rep",rep(1:2,2),"-",chip_names)
+
+chip_macs1_granges <- lapply(chip_peaks_full, import.bed)
+
+names(chip_macs1_granges) <- chip_names
+
+```
+
+## load ChIP peaks - reprocessed macs
+```{r}
+chip_macs2_peaks_dir <- "../data_output/chip_zic/chip_zic_macs2_peaks/"
+chip_macs2_peaks_files <- list.files(chip_macs2_peaks_dir)
+chip_macs2_peaks_files <- chip_macs2_peaks_files[1:4]
+chip_macs2_peaks_full <- paste0(chip_macs2_peaks_dir,chip_macs2_peaks_files)
+chip_macs2_peaks_names <- c("P7","P7","P60","P60")
+
+chip_macs2_peaks_names <- paste0("ChIP-macs2-","rep",rep(1:2,2),"-",chip_macs2_peaks_names)
+
+
+chip_macs2_granges <- lapply(chip_macs2_peaks_full,
+                               import,
+                               format = "BED",
+                               extraCols = c(singnalValue = "numeric",
+                                             pValue = "numeric",
+                                             qValue = "numeric",
+                                             peak = "integer"))
+
+
+names(chip_macs2_granges) <- chip_macs2_peaks_names
+
+```
+
+## load ChIP peaks - reprocessed seacr
+```{r}
+chip_seacr_peaks_dir <- "../data_output/chip_zic/chip_zic_seacr_peaks/"
+chip_seacr_peaks_files <- list.files(chip_seacr_peaks_dir,pattern = "bed$")
+chip_seacr_peaks_files <- chip_seacr_peaks_files[1:4]
+chip_seacr_peaks_full <- paste0(chip_seacr_peaks_dir,chip_seacr_peaks_files)
+chip_seacr_peaks_names <- c("P7","P7","P60","P60")
+chip_seacr_peaks_names <- paste0("ChIP-seacr-","rep",rep(1:2,2),"-",chip_seacr_peaks_names)
+
+chip_seacr_granges <- lapply(chip_seacr_peaks_full, import.bedGraph)
+
+names(chip_seacr_granges) <- chip_seacr_peaks_names
+
+```
+
+# Overlap all vs all
+
+```{r}
+library(GenomicRanges)
+
+all_peaks <- GRangesList(c(cutnrun_macs_granges,
+                           cutnrun_seacr_granges,
+                           chip_macs1_granges,
+                           chip_macs2_granges,
+                           chip_seacr_granges))
+
+```
+
+Remove peaks that overlap blacklist
+```{r}
+mm10_blacklist <- import("../data_input/bed/mm10-blacklist.v2.bed.gz")
+
+all_peaks <- lapply(all_peaks, function(x){
+  x[!overlapsAny(x,mm10_blacklist)]
+})
+
+```
+
+
+In basepairs
+
+```{r}
+
+all_vs_all_overlap_by_basepairs <- combn(1:length(all_peaks),2,
+                            FUN = function(x) {
+                              intersection <- sum(width(GenomicRanges::intersect(all_peaks[[x[1]]],all_peaks[[x[2]]])))
+                              setdiff1 <- sum(width(GenomicRanges::setdiff(all_peaks[[x[1]]],all_peaks[[x[2]]])))
+                              setdiff2 <- sum(width(GenomicRanges::setdiff(all_peaks[[x[2]]],all_peaks[[x[1]]])))
+                              union <- sum(width(GenomicRanges::union(all_peaks[[x[1]]],all_peaks[[x[2]]])))
+                              return(data.frame("intersection" = intersection,
+                                                "union" = union,
+                                                "set1" = names(all_peaks[x[1]]),
+                                                "set2" = names(all_peaks[x[2]]),
+                                                "setdiff1" = setdiff1,
+                                                "setdiff2" = setdiff2)
+                              )
+                            },
+                            simplify = FALSE)
+
+all_vs_all_overlap_by_basepairs <- do.call(rbind,all_vs_all_overlap_by_basepairs)
+
+
+```
+
+
+By element
+
+```{r}
+
+all_vs_all_overlap_by_element <- combn(1:length(all_peaks),2,
+                            FUN = function(x) {
+                              intersection <- sum(IRanges::overlapsAny(all_peaks[[x[1]]],all_peaks[[x[2]]]))
+                              setdiff1 <- length(all_peaks[[x[1]]]) - intersection
+                              setdiff2 <-length(all_peaks[[x[2]]]) - intersection 
+                              
+                              return(data.frame("intersection" = intersection,
+                                                "set1" = names(all_peaks[x[1]]),
+                                                "set2" = names(all_peaks[x[2]]),
+                                                "setdiff1" = setdiff1,
+                                                "setdiff2" = setdiff2)
+                              )
+                            },
+                            simplify = FALSE)
+
+all_vs_all_overlap_by_element <- do.call(rbind,all_vs_all_overlap_by_element)
+
+
+```
+
+# Plots
+
+```{r}
+plot_overlaps <- function(overlaps_df) {
+  overlaps_df %>%
+  pivot_longer(is.numeric) %>%
+    group_by(set1,set2) %>%
+    mutate(percentage = value / sum(value)) %>%
+    ungroup() %>%
+    mutate(name = fct_relevel(name, "setdiff2","setdiff1","intersection")) %>%
+    ggplot(aes(y = paste(set1,set2), x = percentage, fill = name)) +
+    geom_col(width = 0.5) +
+    ylab(NULL) +
+    xlab("Percentage Overlap") +
+    theme_minimal() 
+}
+```
+
+
+# Plot overlaps
+## CutNrun
+
+### seacr vs macs between replicates
+
+#### Day 1
+
+By basepair
+```{r}
+library(patchwork)
+
+(all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "macs") &
+           str_detect(set2, "macs")) %>%
+  filter( str_detect(set1, "D1") &
+           str_detect(set2, "D1") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "D1") &
+           str_detect(set2, "D1") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("seacr")) 
+```
+
+By element
+```{r}
+(all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "macs") &
+           str_detect(set2, "macs")) %>%
+  filter( str_detect(set1, "D1") &
+           str_detect(set2, "D1") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "D1") &
+           str_detect(set2, "D1") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("seacr")) 
+```
+
+#### Day 3
+
+By basepair
+```{r}
+library(patchwork)
+
+(all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "macs") &
+           str_detect(set2, "macs")) %>%
+  filter( str_detect(set1, "D3") &
+           str_detect(set2, "D3") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "D3") &
+           str_detect(set2, "D3") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("seacr")) 
+```
+
+By element
+```{r}
+(all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "macs") &
+           str_detect(set2, "macs")) %>%
+  filter( str_detect(set1, "D3") &
+           str_detect(set2, "D3") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "D3") &
+           str_detect(set2, "D3") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("seacr")) 
+```
+
+#### Day 5
+
+By basepair
+```{r}
+library(patchwork)
+
+(all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "macs") &
+           str_detect(set2, "macs")) %>%
+  filter( str_detect(set1, "D5") &
+           str_detect(set2, "D5") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "D5") &
+           str_detect(set2, "D5") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("seacr")) 
+```
+
+By element
+```{r}
+(all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "macs") &
+           str_detect(set2, "macs")) %>%
+  filter( str_detect(set1, "D5") &
+           str_detect(set2, "D5") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "D5") &
+           str_detect(set2, "D5") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("seacr")) 
+```
+
+#### Day 7
+
+By basepair
+```{r}
+
+
+(all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "macs") &
+           str_detect(set2, "macs")) %>%
+  filter( str_detect(set1, "D7") &
+           str_detect(set2, "D7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "D7") &
+           str_detect(set2, "D7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("seacr")) 
+```
+
+By element
+```{r}
+(all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "macs") &
+           str_detect(set2, "macs")) %>%
+  filter( str_detect(set1, "D7") &
+           str_detect(set2, "D7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "D7") &
+           str_detect(set2, "D7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("seacr")) 
+```
+
+
+
+### seacr vs macs
+
+By basepair
+```{r}
+
+all_vs_all_overlap_by_basepairs %>%
+  separate(set1, into =c("exp1","caller1","rep1","time1") ,remove = FALSE) %>%
+  separate(set2, into =c("exp2","caller2","rep2","time2") , remove = FALSE) %>%
+  filter(exp1 == "cutnrun",
+         exp2 == "cutnrun",
+         rep1 == rep2,
+         time1 == time2) %>%
+  select(-union) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") 
+
+```
+
+By element
+```{r}
+
+all_vs_all_overlap_by_element %>%
+  separate(set1, into =c("exp1","caller1","rep1","time1") ,remove = FALSE) %>%
+  separate(set2, into =c("exp2","caller2","rep2","time2") , remove = FALSE) %>%
+  filter(exp1 == "cutnrun",
+         exp2 == "cutnrun",
+         rep1 == rep2,
+         time1 == time2) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") 
+
+```
+
+## ChIP:
+### seacr and macs between replicates
+
+#### Day P7
+
+By basepair
+```{r}
+
+(all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "macs2") &
+           str_detect(set2, "macs2")) %>%
+  filter( str_detect(set1, "P7") &
+           str_detect(set2, "P7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "P7") &
+           str_detect(set2, "P7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("seacr")) 
+```
+
+By element
+```{r}
+
+(all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "macs2") &
+           str_detect(set2, "macs2")) %>%
+  filter( str_detect(set1, "P7") &
+           str_detect(set2, "P7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "P7") &
+           str_detect(set2, "P7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("seacr")) 
+```
+
+#### Day P60
+
+By basepair
+```{r}
+
+(all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "macs2") &
+           str_detect(set2, "macs2")) %>%
+  filter( str_detect(set1, "P60") &
+           str_detect(set2, "P60") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "P60") &
+           str_detect(set2, "P60") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("seacr")) 
+```
+
+By element
+```{r}
+
+(all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "macs2") &
+           str_detect(set2, "macs2")) %>%
+  filter( str_detect(set1, "P60") &
+           str_detect(set2, "P60") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("macs")) /
+  (all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "seacr") &
+           str_detect(set2, "seacr")) %>%
+  filter( str_detect(set1, "P60") &
+           str_detect(set2, "P60") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("seacr")) 
+```
+
+### seacr vs macs
+
+By basepair
+```{r}
+
+all_vs_all_overlap_by_basepairs %>%
+  separate(set1, into =c("exp1","caller1","rep1","time1") ,remove = FALSE) %>%
+  separate(set2, into =c("exp2","caller2","rep2","time2") , remove = FALSE) %>%
+  filter(exp1 == "ChIP",
+         exp2 == "ChIP",
+         rep1 == rep2,
+         time1 == time2) %>%
+  select(-union) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") 
+
+```
+
+By element
+```{r}
+
+all_vs_all_overlap_by_element %>%
+  separate(set1, into =c("exp1","caller1","rep1","time1") ,remove = FALSE) %>%
+  separate(set2, into =c("exp2","caller2","rep2","time2") , remove = FALSE) %>%
+  filter(exp1 == "ChIP",
+         exp2 == "ChIP",
+         rep1 == rep2,
+         time1 == time2) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") 
+
+```
+
+
+### new vs old macs
+
+#### Day P7
+
+By basepair
+```{r}
+
+(all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "macs2") &
+           str_detect(set2, "macs2")) %>%
+  filter( str_detect(set1, "P7") &
+           str_detect(set2, "P7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("macs2")) /
+  (all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "macs1") &
+           str_detect(set2, "macs1")) %>%
+  filter( str_detect(set1, "P7") &
+           str_detect(set2, "P7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("macs1")) 
+```
+
+By element
+```{r}
+
+(all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "macs2") &
+           str_detect(set2, "macs2")) %>%
+  filter( str_detect(set1, "P7") &
+           str_detect(set2, "P7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("macs2")) /
+  (all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "macs1") &
+           str_detect(set2, "macs1")) %>%
+  filter( str_detect(set1, "P7") &
+           str_detect(set2, "P7") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("macs1")) 
+```
+
+#### Day P60
+
+By basepair
+```{r}
+
+(all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "macs2") &
+           str_detect(set2, "macs2")) %>%
+  filter( str_detect(set1, "P60") &
+           str_detect(set2, "P60") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("macs2")) /
+  (all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "macs1") &
+           str_detect(set2, "macs1")) %>%
+  filter( str_detect(set1, "P60") &
+           str_detect(set2, "P60") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)") +
+  ggtitle("macs1")) 
+```
+
+By element
+```{r}
+
+(all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "macs2") &
+           str_detect(set2, "macs2")) %>%
+  filter( str_detect(set1, "P60") &
+           str_detect(set2, "P60") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("macs2")) /
+  (all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "macs1") &
+           str_detect(set2, "macs1")) %>%
+  filter( str_detect(set1, "P60") &
+           str_detect(set2, "P60") ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)") +
+  ggtitle("macs1")) 
+```
+
+
+## CutNrun vs Chip:
+
+### seacr
+
+#### Matched times plots
+
+##### Culture day 1 vs in vivo day 7
+
+Basepairs
+```{r}
+all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "seacr"),
+         str_detect(set2, "seacr")) %>%
+  filter( (str_detect(set1, "cutnrun") &
+           str_detect(set2, "ChIP") ) | (
+             str_detect(set1, "ChIP") &
+           str_detect(set2, "cutnrun") )
+           ) %>%
+  filter( (str_detect(set1, "D1") &
+           str_detect(set2, "P7") ) | (
+             str_detect(set1, "P7") &
+           str_detect(set2, "D1") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)")
+
+```
+
+By element
+```{r}
+all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "seacr"),
+         str_detect(set2, "seacr")) %>%
+  filter( (str_detect(set1, "cutnrun") &
+           str_detect(set2, "ChIP") ) | (
+             str_detect(set1, "ChIP") &
+           str_detect(set2, "cutnrun") )
+           ) %>%
+  filter( (str_detect(set1, "D1") &
+           str_detect(set2, "P7") ) | (
+             str_detect(set1, "P7") &
+           str_detect(set2, "D1") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+```
+
+
+##### Culture day 3 vs in vivo day 7
+Basepairs
+```{r}
+all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "seacr"),
+         str_detect(set2, "seacr")) %>%
+  filter( (str_detect(set1, "cutnrun") &
+           str_detect(set2, "ChIP") ) | (
+             str_detect(set1, "ChIP") &
+           str_detect(set2, "cutnrun") )
+           ) %>%
+  filter( (str_detect(set1, "D3") &
+           str_detect(set2, "P7") ) | (
+             str_detect(set1, "P7") &
+           str_detect(set2, "D3") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)")
+
+```
+
+By element
+```{r}
+all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "seacr"),
+         str_detect(set2, "seacr")) %>%
+  filter( (str_detect(set1, "cutnrun") &
+           str_detect(set2, "ChIP") ) | (
+             str_detect(set1, "ChIP") &
+           str_detect(set2, "cutnrun") )
+           ) %>%
+  filter( (str_detect(set1, "D3") &
+           str_detect(set2, "P7") ) | (
+             str_detect(set1, "P7") &
+           str_detect(set2, "D3") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+```
+##### Culture day 7 vs in vivo day 60
+
+Basepairs
+```{r}
+all_vs_all_overlap_by_basepairs %>%
+  filter(str_detect(set1, "seacr"),
+         str_detect(set2, "seacr")) %>%
+  filter( (str_detect(set1, "cutnrun") &
+           str_detect(set2, "ChIP") ) | (
+             str_detect(set1, "ChIP") &
+           str_detect(set2, "cutnrun") )
+           ) %>%
+  filter( (str_detect(set1, "D7") &
+           str_detect(set2, "P60") ) | (
+             str_detect(set1, "P60") &
+           str_detect(set2, "D7") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)")
+
+```
+
+By element
+```{r}
+all_vs_all_overlap_by_element %>%
+  filter(str_detect(set1, "seacr"),
+         str_detect(set2, "seacr")) %>%
+  filter( (str_detect(set1, "cutnrun") &
+           str_detect(set2, "ChIP") ) | (
+             str_detect(set1, "ChIP") &
+           str_detect(set2, "cutnrun") )
+           ) %>%
+  filter( (str_detect(set1, "D7") &
+           str_detect(set2, "P60") ) | (
+             str_detect(set1, "P60") &
+           str_detect(set2, "D7") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+```
+### macs
+
+#### Matched times plots
+
+##### Culture day 1 vs in vivo day 7
+
+Basepairs
+```{r}
+all_vs_all_overlap_by_basepairs %>%
+  filter( (str_detect(set1, "cutnrun-macs") &
+           str_detect(set2, "ChIP-macs2") ) | (
+             str_detect(set1, "ChIP-macs2") &
+           str_detect(set2, "cutnrun-macs") )
+           ) %>%
+  filter( (str_detect(set1, "D1") &
+           str_detect(set2, "P7") ) | (
+             str_detect(set1, "P7") &
+           str_detect(set2, "D1") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)")
+
+```
+
+By element
+```{r}
+all_vs_all_overlap_by_element %>%
+  filter( (str_detect(set1, "cutnrun-macs") &
+           str_detect(set2, "ChIP-macs2") ) | (
+             str_detect(set1, "ChIP-macs2") &
+           str_detect(set2, "cutnrun-macs") )
+           ) %>%
+  filter( (str_detect(set1, "D1") &
+           str_detect(set2, "P7") ) | (
+             str_detect(set1, "P7") &
+           str_detect(set2, "D1") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+```
+
+
+##### Culture day 3 vs in vivo day 7
+Basepairs
+```{r}
+all_vs_all_overlap_by_basepairs %>%
+  filter( (str_detect(set1, "cutnrun-macs") &
+           str_detect(set2, "ChIP-macs2") ) | (
+             str_detect(set1, "ChIP-macs2") &
+           str_detect(set2, "cutnrun-macs") )
+           ) %>%
+  filter( (str_detect(set1, "D3") &
+           str_detect(set2, "P7") ) | (
+             str_detect(set1, "P7") &
+           str_detect(set2, "D3") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)")
+
+```
+
+By element
+```{r}
+all_vs_all_overlap_by_element %>%
+  filter( (str_detect(set1, "cutnrun-macs") &
+           str_detect(set2, "ChIP-macs2") ) | (
+             str_detect(set1, "ChIP-macs2") &
+           str_detect(set2, "cutnrun-macs") )
+           ) %>%
+  filter( (str_detect(set1, "D3") &
+           str_detect(set2, "P7") ) | (
+             str_detect(set1, "P7") &
+           str_detect(set2, "D3") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+```
+##### Culture day 7 vs in vivo day 60
+
+Basepairs
+```{r}
+all_vs_all_overlap_by_basepairs %>%
+  filter( (str_detect(set1, "cutnrun-macs") &
+           str_detect(set2, "ChIP-macs2") ) | (
+             str_detect(set1, "ChIP-macs2") &
+           str_detect(set2, "cutnrun-macs") )
+           ) %>%
+  filter( (str_detect(set1, "D7") &
+           str_detect(set2, "P60") ) | (
+             str_detect(set1, "P60") &
+           str_detect(set2, "D7") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)")
+
+```
+
+By element
+```{r}
+all_vs_all_overlap_by_element %>%
+  filter( (str_detect(set1, "cutnrun-macs") &
+           str_detect(set2, "ChIP-macs2") ) | (
+             str_detect(set1, "ChIP-macs2") &
+           str_detect(set2, "cutnrun-macs") )
+           ) %>%
+  filter( (str_detect(set1, "D7") &
+           str_detect(set2, "P60") ) | (
+             str_detect(set1, "P60") &
+           str_detect(set2, "D7") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+```
