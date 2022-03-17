@@ -34,5 +34,9 @@ It was still due to an earlier version of the pipeline.
 - CutNRun DESEq
 - Meetings
 
+#2022-03-17
 - Why is seacr  not working on bash scripts?
+- CutNRun DESEq -  test per each combination - results/zic_cutnrun_deseq.Rmd
+- Run MAC2 for CutNRun after exploring in the browser SEACR, MACS and MACS2 for ChIP, and macs2 really looks better than either seacr or previous call
+
 
