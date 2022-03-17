@@ -946,3 +946,19 @@ all_vs_all_overlap_by_element %>%
   xlab("Overlap (N)")
 
 ```
+
+Notes:
+
+From looking at the browser
+- New macs2 chip peaks look better than previous ones on the browser. They are shorter, and more centered on the signal summit.
+- seacr chip peaks don't look as good as macs2 peaks. 
+- Macs2 seems to work well for cutnrun as well. Calls less peaks where signal looks more noisy compared to seacr, but also misses some peaks that look real that seacr doesn't.
+
+From looking at the overlaps
+- When comparing macs2 vs seacr, most macs2 peaks are also called by seacr, but seacr calls many more. These are likely a mix of seacr false positives, and macs2 false negatives.
+- If we want to compare cutnrun vs chip with the same caller, I would trust more the macs2 comparison, which works reasonably well on both datasets.
+
+
+To more closely answer the experimental question of how similar is Zic binding in vivo vs in vitro, we could take the most reproducible peaks from each experiment before doing the between experiment comparisons.
+
+
