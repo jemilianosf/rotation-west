@@ -36,7 +36,20 @@ It was still due to an earlier version of the pipeline.
 
 #2022-03-17
 - Why is seacr  not working on bash scripts?
-- CutNRun DESEq -  test per each combination - results/zic_cutnrun_deseq.Rmd
 - Run MAC2 for CutNRun after exploring in the browser SEACR, MACS and MACS2 for ChIP, and macs2 really looks better than either seacr or previous call
+- Made new analysis: results/zic_cutnrun_chip_reproccessed_overlap.Rmd
 
+TL;DR:
+From looking at the browser
+- New macs2 chip peaks look better than previous ones on the browser. They are shorter, and more centered on the signal summit.
+- seacr chip peaks don't look as good as macs2 peaks. 
+- Macs2 seems to work well for cutnrun as well. Calls less peaks where signal looks more noisy compared to seacr, but also misses some peaks that look real that seacr doesn't.
+
+From looking at the overlaps
+- When comparing macs2 vs seacr, most macs2 peaks are also called by seacr, but seacr calls many more. These are likely a mix of seacr false positives, and macs2 false negatives.
+- If we want to compare cutnrun vs chip with the same caller, I would trust more the macs2 comparison, which works reasonably well on both datasets.
+
+
+- CutNRun DESEq -  test per each combination - results/zic_cutnrun_deseq.Rmd
+- Think  more about the cutnrun data: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1802-4
 
