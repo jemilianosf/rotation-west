@@ -53,3 +53,12 @@ From looking at the overlaps
 - CutNRun DESEq -  test per each combination - results/zic_cutnrun_deseq.Rmd
 - Think  more about the cutnrun data: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1802-4
 
+#2022-03-18
+- Finish overlaps analysis
+  - Sort by overlap size
+  - Change colors
+- DESeq with seacr peaks 
+
+- Annotate peaks with ChIPseeker 
+
+
