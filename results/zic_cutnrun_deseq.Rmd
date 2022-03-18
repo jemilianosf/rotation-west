@@ -107,38 +107,145 @@ deseq_obj <- deseq_obj[keep,]
 
 
 # Test
-LRT test that is conceptually similar to ANOVA
+
+Test with contrasts by time pairs from 1 to 3, 3 to 5, 5 to 7
 ```{r}
-deseq_obj <- DESeq(deseq_obj, test="LRT", reduced=~1)
-res <- results(deseq_obj)
+deseq_obj_contrasts <- DESeq(deseq_obj)
+res_3v1 <- results(deseq_obj_contrasts,contrast = c("time","D3Z","D1Z"))
+res_5v3 <- results(deseq_obj_contrasts,contrast = c("time","D5Z","D3Z"))
+res_7v5 <- results(deseq_obj_contrasts,contrast = c("time","D7Z","D5Z"))
+res_7v1 <- results(deseq_obj_contrasts,contrast = c("time","D7Z","D1Z"))
 
 ```
 
+Test with LRT analogous to anova (https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#likelihood-ratio-test)
+
 ```{r}
-res %>%
+deseq_obj_lrt <- DESeq(deseq_obj, test="LRT", reduced=~1)
+res_all <- results(deseq_obj_lrt)
+```
+
+
+P value histogram
+
+```{r}
+res_3v1 %>%
   as_tibble() %>%
-  ggplot(aes(padj)) +
+  ggplot(aes(pvalue)) +
   geom_histogram()
+
+res_5v3 %>%
+  as_tibble() %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram()
+
+res_7v5 %>%
+  as_tibble() %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram()
+
 ```
 
-```{r}
-res %>%
-  as_tibble() %>%
-  ggplot(aes(log2FoldChange, -10*log10(padj))) +
-  geom_point()
-```
-```{r}
-res %>%
-  as_tibble() %>%
-ggplot(aes(x = baseMean,log2FoldChange)) +
-  geom_point()
-```
+
+
 
 # Plots
 
 ## Volcano / MA
+```{r}
+options(scipen = 99999)
+
+plotMA(res_3v1)
+plotMA(res_5v3)
+plotMA(res_7v5)
+plotMA(res_7v1)
+
+```
+
+
 
 ## Heatmap
+Get vst counts
+```{r}
+vsd <- vst(deseq_obj, blind=FALSE)
+
+
+```
+
+```{r}
+library(ComplexHeatmap)
+
+
+plot_diffbind_heatmap <- function(vst_tab, res_obj){
+  scaled_vst <- t(scale(t(assay(vst_tab[tidyr::replace_na(res_obj$padj,1) < 0.01,]))))
+  colnames(scaled_vst) <- paste((str_split(colnames(scaled_vst),"-") %>% map_chr(2)),
+                                (str_split(colnames(scaled_vst),"-") %>% map_chr(1)),sep = "-")
+  
+  scaled_vst <- scaled_vst[, order(colnames(scaled_vst))]
+  
+  Heatmap(scaled_vst ,
+          cluster_columns = FALSE,
+          show_row_dend = FALSE,
+          col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
+  
+} 
+
+
+
+
+```
+
+```{r}
+plot_diffbind_heatmap(vsd, res_3v1)
+plot_diffbind_heatmap(vsd, res_5v3)
+plot_diffbind_heatmap(vsd, res_7v5)
+plot_diffbind_heatmap(vsd, res_all)
+```
+```{r}
+plot_diffbind_heatmap(vsd, res_7v1)
+```
+
+
+```{r}
+
+  scaled_vst <- t(scale(t(assay(vsd[tidyr::replace_na(res_all$padj,1) < 0.01,]))))
+  colnames(scaled_vst) <- paste((str_split(colnames(scaled_vst),"-") %>% map_chr(2)),
+                                (str_split(colnames(scaled_vst),"-") %>% map_chr(1)),sep = "-")
+  
+  scaled_vst <- scaled_vst[, order(colnames(scaled_vst))]
+  
+  Heatmap(scaled_vst ,
+          cluster_columns = FALSE,
+          show_row_dend = FALSE,
+          row_km = 3,
+          col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
+  
+```
+
+```{r}
+  scaled_vst <- t(scale(t(assay(vsd[tidyr::replace_na(res_7v1$padj,1) < 0.01,]))))
+  colnames(scaled_vst) <- paste((str_split(colnames(scaled_vst),"-") %>% map_chr(2)),
+                                (str_split(colnames(scaled_vst),"-") %>% map_chr(1)),sep = "-")
+  
+  scaled_vst <- scaled_vst[, order(colnames(scaled_vst))]
+  
+  Heatmap(scaled_vst ,
+          cluster_columns = FALSE,
+          show_row_dend = FALSE,
+          row_km = 2,
+          col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
+
+```
 
 ## Aleuvial 
+
+
+Notes: 
+
+- In general there seems to be three large groups:
+
+- Peaks that loose binding 1 -> 7
+- Peaks that gain binding 1 -> 7 
+For both of these there might be subgroups of different gain/loss timing (i.e. some binding is gained by day 3, others 5 etc)
+- Peaks gain and then loose (gain by 3 then start loosing) Could it be due to cell culture?
 
