@@ -184,6 +184,30 @@ all_vs_all_overlap_by_basepairs <- do.call(rbind,all_vs_all_overlap_by_basepairs
 By element
 
 ```{r}
+get_overlaps_by_element <- function(peaks_list) {
+  peaks_list_olap <- combn(1:length(peaks_list),2,
+                            FUN = function(x) {
+                              intersection <- sum(IRanges::overlapsAny(peaks_list[[x[1]]],peaks_list[[x[2]]]))
+                              setdiff1 <- length(peaks_list[[x[1]]]) - intersection
+                              setdiff2 <-length(peaks_list[[x[2]]]) - intersection 
+                              
+                              return(data.frame("intersection" = intersection,
+                                                "set1" = names(peaks_list[x[1]]),
+                                                "set2" = names(peaks_list[x[2]]),
+                                                "setdiff1" = setdiff1,
+                                                "setdiff2" = setdiff2)
+                              )
+                            },
+                            simplify = FALSE)
+
+peaks_list_olap <- do.call(rbind,peaks_list_olap)
+return(peaks_list_olap)
+}
+
+```
+
+
+```{r}
 
 all_vs_all_overlap_by_element <- combn(1:length(all_peaks),2,
                             FUN = function(x) {
@@ -214,11 +238,13 @@ plot_overlaps <- function(overlaps_df) {
     group_by(set1,set2) %>%
     mutate(percentage = value / sum(value)) %>%
     ungroup() %>%
-    mutate(name = fct_relevel(name, "setdiff2","setdiff1","intersection")) %>%
-    ggplot(aes(y = paste(set1,set2), x = percentage, fill = name)) +
+    mutate(name = fct_relevel(name, "setdiff2","setdiff1","intersection"),
+           comparison = factor(paste(set1,set2))) %>%
+    ggplot(aes(y = comparison, x = percentage, fill = name)) +
     geom_col(width = 0.5) +
     ylab(NULL) +
     xlab("Percentage Overlap") +
+    scale_fill_viridis_d(begin = 0.2,end = 0.8) +
     theme_minimal() 
 }
 ```
@@ -281,7 +307,7 @@ By element
 
 By basepair
 ```{r}
-library(patchwork)
+
 
 (all_vs_all_overlap_by_basepairs %>%
   filter(str_detect(set1, "macs") &
@@ -947,6 +973,135 @@ all_vs_all_overlap_by_element %>%
 
 ```
 
+
+To more closely answer the experimental question of how similar is Zic binding in vivo vs in vitro, we could take the most reproducible peaks from each experiment before doing the between experiment comparisons.
+
+
+0. Get macs2 peaks
+```{r}
+macs2_peaks <- all_peaks[str_detect(names(all_peaks),"cutnrun-macs|ChIP-macs2")]
+
+macs2_peaks_list <- split(macs2_peaks, str_split(names(macs2_peaks),"-",4) %>% map_chr(4))
+
+```
+
+1. Get intersection of peaks for all replicates within each timepoint 
+```{r}
+macs2_peaks_reduced_list <- lapply(macs2_peaks_list, function(x) {
+  Reduce(GenomicRanges::intersect, x)
+})
+
+```
+
+2. Get All vs all overlaps
+```{r}
+
+
+macs2_peaks_reduced_overlap_by_element <- get_overlaps_by_element(macs2_peaks_reduced_list)
+
+  
+```
+
+3. Plot overlaps
+
+D1 vs P7
+```{r}
+macs2_peaks_reduced_overlap_by_element %>%
+    filter( (str_detect(set1, "P") &
+           str_detect(set2, "D") ) | (
+             str_detect(set1, "D") &
+           str_detect(set2, "P") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+```
+
+D1 vs P7
+```{r}
+macs2_peaks_reduced_overlap_by_element %>%
+    filter( (str_detect(set1, "D") &
+           str_detect(set2, "D") ) 
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+```
+```{r}
+macs2_peaks_reduced_overlap_by_element %>%
+    filter( (str_detect(set1, "P") &
+           str_detect(set2, "P") ) 
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+```
+
+Try with seacr
+0. Get seacr peaks
+```{r}
+seacr_peaks <- all_peaks[str_detect(names(all_peaks),"seacr")]
+
+seacr_peaks_list <- split(seacr_peaks, str_split(names(seacr_peaks),"-",4) %>% map_chr(4))
+
+```
+
+1. Get intersection of peaks for all replicates within each timepoint 
+```{r}
+seacr_peaks_reduced_list <- lapply(seacr_peaks_list, function(x) {
+  Reduce(GenomicRanges::intersect, x)
+})
+
+```
+
+2. Get All vs all overlaps
+```{r}
+
+
+seacr_peaks_reduced_overlap_by_element <- get_overlaps_by_element(seacr_peaks_reduced_list)
+
+  
+```
+
+3. Plot overlaps
+
+D1 vs P7
+```{r}
+seacr_peaks_reduced_overlap_by_element %>%
+    filter( (str_detect(set1, "P") &
+           str_detect(set2, "D") ) | (
+             str_detect(set1, "D") &
+           str_detect(set2, "P") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+```
+
+D1 vs P7
+```{r}
+seacr_peaks_reduced_overlap_by_element %>%
+    filter( (str_detect(set1, "D") &
+           str_detect(set2, "D") ) 
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+```
+
+```{r}
+seacr_peaks_reduced_overlap_by_element %>%
+    filter( (str_detect(set1, "P") &
+           str_detect(set2, "P") ) 
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+```
+
+
 Notes:
 
 From looking at the browser
@@ -958,7 +1113,7 @@ From looking at the overlaps
 - When comparing macs2 vs seacr, most macs2 peaks are also called by seacr, but seacr calls many more. These are likely a mix of seacr false positives, and macs2 false negatives.
 - If we want to compare cutnrun vs chip with the same caller, I would trust more the macs2 comparison, which works reasonably well on both datasets.
 
-
-To more closely answer the experimental question of how similar is Zic binding in vivo vs in vitro, we could take the most reproducible peaks from each experiment before doing the between experiment comparisons.
+From looking at the stringent overlaps analysis
+- In vitro Zic binding is progressively lost as days pass
 
 
