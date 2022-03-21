@@ -59,6 +59,14 @@ From looking at the overlaps
   - Change colors
 - DESeq with seacr peaks 
 
-- Annotate peaks with ChIPseeker 
+
+#2022-03-19
+- Annotation of DESeq2 diff binding seacr peaks in vitro in results/zic_cutnrun_deseq.Rmd
+- Started DESeq2 chip analysis
+
+- Left to do: general ChIPseeker of all peaks (seacr and macs2)
+
+
+#2022-03-19
 
 
