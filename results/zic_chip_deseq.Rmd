@@ -1,0 +1,80 @@
+---
+title: "DESeq2 Zic Cerebellum ChIP P7 vs P60"
+output: html_notebook
+---
+
+# Differential binding analysis of Zic ChIP data
+(based on the Cut&Run one)
+Steps:
+- Get union of peaks across replicates / timepoints
+- Get counts matrix
+- Test
+
+# Get union of peaks
+
+## load cutnrun peaks as granges objects
+```{r}
+library(rtracklayer)
+library(tidyverse)
+
+peaks_dir <- "../data_output/chip_zic/chip_zic_seacr_peaks/"
+peaks_files <- list.files(peaks_dir,pattern = ".bed")
+peaks_full <- paste0(peaks_dir,peaks_files)
+
+peaks_granges <- lapply(peaks_full, import.bedGraph)
+
+input_peaks_granges <- peaks_granges[5:8]
+
+peaks_granges <- peaks_granges[1:4]
+
+names(peaks_granges) <- c("chip-p7-rep1",
+                          "chip-p7-rep2",
+                          "chip-p60-rep1",
+                          "chip-p60-rep2")
+
+```
+
+```{r}
+peaks_union_granges <- GenomicRanges::union(unlist(GRangesList(peaks_granges)),
+                                                    unlist(GRangesList(peaks_granges)))
+
+input_union_granges <- GenomicRanges::union(unlist(GRangesList(input_peaks_granges)),
+                                                    unlist(GRangesList(input_peaks_granges)))
+
+```
+
+## remove peaks that overlap blacklist
+
+```{r}
+mm10_blacklist <- import("../data_input/bed/mm10-blacklist.v2.bed.gz")
+
+mm10_blacklist <- c(mm10_blacklist,
+input_union_granges)
+
+peaks_union_granges <- peaks_union_granges[!overlapsAny(peaks_union_granges, mm10_blacklist)]
+
+```
+
+
+```{r eval = FALSE}
+export.bed(peaks_union_granges,"../data_output/bed/chip_zic_seacr_peaks_union.bed")
+
+```
+
+# Get counts matrix
+```{r}
+library(csaw)
+bam_files <- list.files("../data_output/chip_zic/bam/",pattern = ".bam$",full.names = T)
+counts <- csaw::regionCounts(bam.files = bam_files,
+                   regions = cutnrun_peaks_union_granges,
+                   param = csaw::readParam(dedup = TRUE, minq = 20))
+
+colnames(counts) <- str_split(basename(bam_files),"_",2) %>% map_chr(1)
+
+colData(counts)$rep <- str_split(colnames(counts),"-") %>% map_chr(1)
+colData(counts)$time <- str_split(colnames(counts),"-") %>% map_chr(2)
+
+```
+
+Notes:
+- I'm gonna try the simpler overlap approach before doing this
