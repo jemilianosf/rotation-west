@@ -9,3 +9,204 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Zic CutNRun peaks annotation 
 
+# Load CutNrun and Chip peaks
+
+## load cutnrun peaks as granges objects seacr
+```{r}
+library(rtracklayer)
+library(tidyverse)
+
+cutnrun_seacr_dir <- "../data_output/cutnrun_zic/seacr_peaks/"
+cutnrun_seacr_files <- list.files(cutnrun_seacr_dir,pattern = ".bed")
+cutnrun_seacr_full <- paste0(cutnrun_seacr_dir,cutnrun_seacr_files)
+
+
+cutnrun_seacr_granges <- lapply(cutnrun_seacr_full, import.bedGraph)
+
+names(cutnrun_seacr_granges) <- str_split(cutnrun_seacr_files,"_",n=2) %>% map_chr(1)
+
+names(cutnrun_seacr_granges) <- paste0("cutnrun-seacr-",names(cutnrun_seacr_granges))
+
+```
+
+macs
+```{r}
+
+cutnrun_macs_dir <- "../data_output/cutnrun_zic/macs_peaks/"
+cutnrun_macs_files <- list.files(cutnrun_macs_dir, pattern = "narrowPeak$")
+cutnrun_macs_full <- paste0(cutnrun_macs_dir,cutnrun_macs_files)
+
+cutnrun_macs_granges <- lapply(cutnrun_macs_full,
+                               import,
+                               format = "BED",
+                               extraCols = c(singnalValue = "numeric",
+                                             pValue = "numeric",
+                                             qValue = "numeric",
+                                             peak = "integer"))
+
+names(cutnrun_macs_granges) <- str_split(cutnrun_macs_files,"_",n=2) %>% map_chr(1)
+
+names(cutnrun_macs_granges) <- paste0("cutnrun-macs-",names(cutnrun_macs_granges))
+
+```
+
+
+## load ChIP peaks - previous macs
+```{r}
+chip_peaks_dir <- "../data_output/bed/"
+chip_peaks_files <- list.files(chip_peaks_dir, pattern = "mm10.bed")
+chip_peaks_full <- paste0(chip_peaks_dir,chip_peaks_files)
+chip_names <- str_split(chip_peaks_files,"_",n=3) %>% map_chr(2)
+chip_names <- paste0("ChIP-macs1-","rep",rep(1:2,2),"-",chip_names)
+
+chip_macs1_granges <- lapply(chip_peaks_full, import.bed)
+
+names(chip_macs1_granges) <- chip_names
+
+```
+
+## load ChIP peaks - reprocessed macs
+```{r}
+chip_macs2_peaks_dir <- "../data_output/chip_zic/chip_zic_macs2_peaks/"
+chip_macs2_peaks_files <- list.files(chip_macs2_peaks_dir)
+chip_macs2_peaks_files <- chip_macs2_peaks_files[1:4]
+chip_macs2_peaks_full <- paste0(chip_macs2_peaks_dir,chip_macs2_peaks_files)
+chip_macs2_peaks_names <- c("P7","P7","P60","P60")
+
+chip_macs2_peaks_names <- paste0("ChIP-macs2-","rep",rep(1:2,2),"-",chip_macs2_peaks_names)
+
+
+chip_macs2_granges <- lapply(chip_macs2_peaks_full,
+                               import,
+                               format = "BED",
+                               extraCols = c(singnalValue = "numeric",
+                                             pValue = "numeric",
+                                             qValue = "numeric",
+                                             peak = "integer"))
+
+
+names(chip_macs2_granges) <- chip_macs2_peaks_names
+
+```
+
+## load ChIP peaks - reprocessed seacr
+```{r}
+chip_seacr_peaks_dir <- "../data_output/chip_zic/chip_zic_seacr_peaks/"
+chip_seacr_peaks_files <- list.files(chip_seacr_peaks_dir,pattern = "bed$")
+chip_seacr_peaks_files <- chip_seacr_peaks_files[1:4]
+chip_seacr_peaks_full <- paste0(chip_seacr_peaks_dir,chip_seacr_peaks_files)
+chip_seacr_peaks_names <- c("P7","P7","P60","P60")
+chip_seacr_peaks_names <- paste0("ChIP-seacr-","rep",rep(1:2,2),"-",chip_seacr_peaks_names)
+
+chip_seacr_granges <- lapply(chip_seacr_peaks_full, import.bedGraph)
+
+names(chip_seacr_granges) <- chip_seacr_peaks_names
+
+```
+
+
+```{r}
+library(ChIPseeker)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+```
+
+# Annotate peaks 
+
+```{r}
+
+anno_cutnrun_seacr <- lapply(cutnrun_seacr_granges,
+       annotatePeak,
+       TxDb = txdb,
+             level = "gene",
+             assignGenomicAnnotation = T,
+             annoDb = "org.Mm.eg.db")
+
+anno_cutnrun_macs <- lapply(cutnrun_macs_granges,
+       annotatePeak,
+       TxDb = txdb,
+             level = "gene",
+             assignGenomicAnnotation = T,
+             annoDb = "org.Mm.eg.db")
+
+anno_chip_macs1 <- lapply(chip_macs1_granges,
+       annotatePeak,
+       TxDb = txdb,
+             level = "gene",
+             assignGenomicAnnotation = T,
+             annoDb = "org.Mm.eg.db")
+
+
+anno_chip_macs2 <- lapply(chip_macs2_granges,
+       annotatePeak,
+       TxDb = txdb,
+             level = "gene",
+             assignGenomicAnnotation = T,
+             annoDb = "org.Mm.eg.db")
+
+
+anno_chip_seacr <- lapply(chip_seacr_granges,
+       annotatePeak,
+       TxDb = txdb,
+             level = "gene",
+             assignGenomicAnnotation = T,
+             annoDb = "org.Mm.eg.db")
+```
+
+```{r}
+names(anno_cutnrun_seacr) <- paste(str_split(names(anno_cutnrun_seacr),"-",4) %>% map_chr(4),
+      str_split(names(anno_cutnrun_seacr),"-",4) %>% map_chr(3),
+      sep = "-")
+
+anno_cutnrun_seacr <- anno_cutnrun_seacr[order(names(anno_cutnrun_seacr))]
+
+plotAnnoBar(anno_cutnrun_seacr) + ggtitle("cutnrun-seacr")
+```
+
+```{r}
+names(anno_cutnrun_macs) <- paste(str_split(names(anno_cutnrun_macs),"-",4) %>% map_chr(4),
+      str_split(names(anno_cutnrun_macs),"-",4) %>% map_chr(3),
+      sep = "-")
+
+anno_cutnrun_macs <- anno_cutnrun_macs[order(names(anno_cutnrun_macs))]
+
+plotAnnoBar(anno_cutnrun_macs) + ggtitle("cutnrun-macs")
+
+```
+
+
+```{r}
+names(anno_chip_macs1) <- paste(str_split(names(anno_chip_macs1),"-",4) %>% map_chr(4),
+      str_split(names(anno_chip_macs1),"-",4) %>% map_chr(3),
+      sep = "-")
+
+plotAnnoBar(anno_chip_macs1) + ggtitle("ChIP-macs1")
+
+```
+
+```{r}
+names(anno_chip_macs2) <- paste(str_split(names(anno_chip_macs2),"-",4) %>% map_chr(4),
+      str_split(names(anno_chip_macs2),"-",4) %>% map_chr(3),
+      sep = "-")
+
+plotAnnoBar(anno_chip_macs2) + ggtitle("ChIP-macs2")
+
+```
+
+```{r}
+names(anno_chip_seacr) <- paste(str_split(names(anno_chip_seacr),"-",4) %>% map_chr(4),
+      str_split(names(anno_chip_seacr),"-",4) %>% map_chr(3),
+      sep = "-")
+
+plotAnnoBar(anno_chip_seacr) + ggtitle("ChIP-seacr")
+
+```
+
+Notes: 
+- cutnrun - macs2 progressively gains peaks at promoters
+- cutnrun - seacr doesn't show this
+
+- for chip, there is inconsistent data between methods, with only seacr showing gain of some peaks at promoters, but don't know if we should read too much into this
