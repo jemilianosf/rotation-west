@@ -155,10 +155,11 @@ res_7v5 %>%
 ```{r}
 options(scipen = 99999)
 
-plotMA(res_3v1)
+plotMA(res_3v1) 
 plotMA(res_5v3)
 plotMA(res_7v5)
 plotMA(res_7v1)
+plotMA(res_all)
 
 ```
 
@@ -220,6 +221,11 @@ plot_diffbind_heatmap(vsd, res_7v1)
           row_km = 3,
           col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
   
+    Heatmap(scaled_vst ,
+          cluster_columns = FALSE,
+          show_row_dend = FALSE,
+          col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
+
 ```
 
 ```{r}
@@ -237,7 +243,7 @@ plot_diffbind_heatmap(vsd, res_7v1)
 
 ```
 
-## Aleuvial 
+## Aluviall 
 
 
 Notes: 
@@ -248,4 +254,219 @@ Notes:
 - Peaks that gain binding 1 -> 7 
 For both of these there might be subgroups of different gain/loss timing (i.e. some binding is gained by day 3, others 5 etc)
 - Peaks gain and then loose (gain by 3 then start loosing) Could it be due to cell culture?
+
+
+
+## Annotation: Assign peaks to nearest gene  
+```{r}
+library(ChIPseeker)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+peaks_7v1 <- rowRanges(deseq_obj_contrasts[tidyr::replace_na(res_7v1$padj,1) < 0.01 &
+                                             tidyr::replace_na(res_7v1$log2FoldChange,0) > 0])
+peaks_1v7 <- rowRanges(deseq_obj_contrasts[tidyr::replace_na(res_7v1$padj,1) < 0.01 &
+                                             tidyr::replace_na(res_7v1$log2FoldChange,0) < 0])
+
+
+peaks_7v1_anno <- annotatePeak(peak = peaks_7v1,TxDb = txdb,
+                               level = "gene",
+                               assignGenomicAnnotation = T,
+                               annoDb = "org.Mm.eg.db")
+peaks_1v7_anno <- annotatePeak(peak = peaks_1v7,
+                               TxDb = txdb,
+                               level = "gene",
+                               assignGenomicAnnotation = T,
+                               annoDb = "org.Mm.eg.db")
+peaks_all_anno <- annotatePeak(peak = rowRanges(deseq_obj_contrasts),
+                               TxDb = txdb,
+                               level = "gene",
+                               assignGenomicAnnotation = T,
+                               annoDb = "org.Mm.eg.db")
+
+```
+
+
+
+
+
+```{r}
+
+peaks_anno_list <- list("D7" = peaks_7v1_anno,
+                 "D1" = peaks_1v7_anno,
+                 "all" = peaks_all_anno)
+
+plotAnnoBar(peaks_anno_list)
+
+```
+
+```{r}
+summary(abs(peaks_anno_list$D7@anno$distanceToTSS))
+```
+
+# Overlap with in vivo peaks
+
+## load ChIP peaks - reprocessed seacr
+```{r}
+chip_seacr_peaks_dir <- "../data_output/chip_zic/chip_zic_seacr_peaks/"
+chip_seacr_peaks_files <- list.files(chip_seacr_peaks_dir,pattern = "bed$")
+chip_seacr_peaks_files <- chip_seacr_peaks_files[1:4]
+chip_seacr_peaks_full <- paste0(chip_seacr_peaks_dir,chip_seacr_peaks_files)
+chip_seacr_peaks_names <- c("P7","P7","P60","P60")
+chip_seacr_peaks_names <- paste0("ChIP-seacr-","rep",rep(1:2,2),"-",chip_seacr_peaks_names)
+
+chip_seacr_granges <- lapply(chip_seacr_peaks_full, import.bedGraph)
+
+names(chip_seacr_granges) <- chip_seacr_peaks_names
+
+```
+
+
+
+
+```{r}
+get_overlaps_by_element <- function(peaks_a, peaks_b) {
+                              intersection1 <- sum(IRanges::overlapsAny(peaks_a,peaks_b))
+                              setdiff1 <- length(peaks_a) - intersection1
+                              intersection2 <- sum(IRanges::overlapsAny(peaks_b,peaks_a))
+                              setdiff2 <-length(peaks_b) - intersection2
+                              
+                              return(data.frame("intersection1" = intersection1,
+                                                "intersection2" = intersection2,
+                                                "setdiff1" = setdiff1,
+                                                "setdiff2" = setdiff2))}
+
+```
+
+```{r}
+
+chip_seacr_granges_by_time <- split(chip_seacr_granges, str_split(names(chip_seacr_granges),"-",4) %>% map_chr(4))
+
+
+
+chip_seacr_granges_reduced <- lapply(chip_seacr_granges_by_time, function(x) {
+  Reduce(GenomicRanges::intersect, x)
+})
+
+```
+
+```{r}
+all_peaks_overlaps_by_element <- rbind(get_overlaps_by_element(peaks_1v7, chip_seacr_granges_reduced$P7),
+get_overlaps_by_element(peaks_1v7, chip_seacr_granges_reduced$P60),
+get_overlaps_by_element(peaks_7v1, chip_seacr_granges_reduced$P7),
+get_overlaps_by_element(peaks_7v1, chip_seacr_granges_reduced$P60))
+
+
+all_peaks_overlaps_by_element$set1 <- c("peaks_1v7" , "peaks_1v7", "peaks_7v1", "peaks_7v1")
+all_peaks_overlaps_by_element$set2 <- c("P7", "P60", "P7", "P60")
+```
+
+
+
+
+
+
+
+```{r}
+all_peaks_overlaps_by_element %>%
+  dplyr::select(-setdiff2, -intersection2) %>%
+  pivot_longer(is.numeric) %>%
+    group_by(set1,set2) %>%
+    mutate(percentage = 100 * value / sum(value)) %>%
+    ungroup() %>%
+    mutate(name = fct_relevel(name,"setdiff1","intersection1"),
+           name = fct_recode(name, "overlap" = "intersection1", "no overlap" = "setdiff1"),
+           set2 = fct_relevel(set2,"P7","P60")) %>%
+    ggplot(aes(y = percentage, x = set2, fill = name)) +
+    geom_col(width = 0.5) +
+    ylab(NULL) +
+    ylab("Percentage") +
+  xlab(NULL) +
+    scale_fill_viridis_d(begin = 0.2,end = 0.8) +
+    theme_light() +
+  theme(aspect.ratio = 1.5,legend.title = element_blank()) +
+  facet_grid(~set1)
+```
+
+
+```{r}
+
+```
+
+
+###
+
+# Gene set
+```{r}
+library(clusterProfiler)
+
+gene_ids_list <- lapply(peaks_anno_list,
+       function(x) x@anno$geneId[abs(x@anno$distanceToTSS) < 6000])
+
+comp_go <- compareCluster(geneCluster   = gene_ids_list,
+                         fun           = "enrichGO",
+                         pvalueCutoff  = 0.05,
+                         pAdjustMethod = "BH",
+                         OrgDb = org.Mm.eg.db)
+
+dotplot(comp_go)
+```
+
+```{r}
+gene_ids_list <- lapply(peaks_anno_list,
+       function(x) x@anno$geneId[abs(x@anno$distanceToTSS) < 100])
+
+```
+
+
+```{r}
+genes_d7 <- bitr(gene_ids_list$D7,fromType = "ENTREZID",toType = "SYMBOL",OrgDb = org.Mm.eg.db)
+genes_d1 <- bitr(gene_ids_list$D1,fromType = "ENTREZID",toType = "SYMBOL",OrgDb = org.Mm.eg.db)
+
+
+
+View(genes_d1)
+
+View(genes_d7)
+```
+
+
+Cbln3
+```{r}
+"Cbln3" %in% genes_d7$SYMBOL
+
+genes_d1$SYMBOL[str_detect( genes_d1$SYMBOL,"Elav")]
+
+```
+
+Notes:
+- Goal was to annotate peaks in terms of where they occur in the genome
+  - Most peaks are distal
+  - No change in distribution between early and late peaks
+- Assigning peaks to nearest tss and look for functional enrichments (nearest means at most 6kb from nearest tss)
+  - Note: using all genes (nearest gene but any gene part) does not give different results for each type of cluster
+  - Some relevant genes do show changes: Atoh, arc, Elav3, Cbln3, Gabra6
+  - Gain of Zic binding in GABA receptor GO category
+  - The early one has some ion channel activity related GO
+
+Next steps:
+- Do these gain / loss peaks are also gained / lost in vivo ?
+- Plot IGV example regions of up and down
+- Do shrinkage for sorting genes and for plots  
+- Characterize other timepoints
+- Try annotating "distal" peaks to the cerebellum enhancer - promoter peaks: hic files in data_input/bedpe
+Hic files are from two papers where they do hic in P4 and P22.
+p4
+https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE164360
+p22
+https://pubmed.ncbi.nlm.nih.gov/32647123/
+https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM4120009
+- Deeptools plots showing the gain / loss of peaks 
+
+- Correlate with diff expressed genes ?
+https://www.ncbi.nlm.nih.gov/gds/?term=Regulation%20of%20chromatin%20accessibility%20and%20Zic%20binding%20at%20enhancers%20in%20the%20developing%20cerebellum
+
+
+- Another idea was to overlap to known enhancers
+http://www.enhanceratlas.org/downloadv2.php
 
