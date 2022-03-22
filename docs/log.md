@@ -60,13 +60,19 @@ From looking at the overlaps
 - DESeq with seacr peaks 
 
 
-#2022-03-19
+#2022-03-21
 - Annotation of DESeq2 diff binding seacr peaks in vitro in results/zic_cutnrun_deseq.Rmd
 - Started DESeq2 chip analysis
 
 - Left to do: general ChIPseeker of all peaks (seacr and macs2)
 
+#2022-03-22
+- Overlaps of DESeq2 diff peaks and chip in vivo peaks
+- ChIPseeker of all peaks
+- Changed the overlap thing to make symmetric overlaps when comparing by element.
+- Put together slides
 
-#2022-03-19
+
+- DESeq2 ChIPseq + overlap of diff peaks
 
 
