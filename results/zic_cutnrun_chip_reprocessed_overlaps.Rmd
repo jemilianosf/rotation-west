@@ -180,6 +180,33 @@ all_vs_all_overlap_by_basepairs <- do.call(rbind,all_vs_all_overlap_by_basepairs
 
 ```
 
+```{r}
+get_overlaps_by_basepair <- function(peaks_list) {
+  peaks_list_olap <- combn(1:length(peaks_list),2,
+                           FUN = function(x) {
+                             intersection <- sum(width(GenomicRanges::intersect(peaks_list[[x[1]]],peaks_list[[x[2]]])))
+                             setdiff1 <- sum(width(GenomicRanges::setdiff(peaks_list[[x[1]]],peaks_list[[x[2]]])))
+                             setdiff2 <- sum(width(GenomicRanges::setdiff(peaks_list[[x[2]]],peaks_list[[x[1]]])))
+                             union <- sum(width(GenomicRanges::union(peaks_list[[x[1]]],peaks_list[[x[2]]])))
+                             return(data.frame("intersection" = intersection,
+                                               "union" = union,
+                                               "set1" = names(peaks_list[x[1]]),
+                                               "set2" = names(peaks_list[x[2]]),
+                                               "setdiff1" = setdiff1,
+                                               "setdiff2" = setdiff2)
+                             )
+                           },
+                           simplify = FALSE)
+  
+  peaks_list_olap <- do.call(rbind,peaks_list_olap)
+  return(peaks_list_olap)
+}
+
+
+```
+
+
+
 
 By element
 
@@ -204,6 +231,28 @@ peaks_list_olap <- do.call(rbind,peaks_list_olap)
 return(peaks_list_olap)
 }
 
+get_overlaps_by_element2 <- function(peaks_list) {
+  peaks_list_olap <- combn(1:length(peaks_list),2,
+                            FUN = function(x) {
+                              intersection1 <- sum(IRanges::overlapsAny(peaks_list[[x[1]]],peaks_list[[x[2]]]))
+                              intersection2 <- sum(IRanges::overlapsAny(peaks_list[[x[2]]],peaks_list[[x[1]]]))
+
+                              setdiff1 <- length(peaks_list[[x[1]]]) - intersection1
+                              setdiff2 <-length(peaks_list[[x[2]]]) - intersection2 
+                              
+                              return(data.frame("intersection1" = intersection1,
+                                                "intersection2" = intersection2,
+                                                "set1" = names(peaks_list[x[1]]),
+                                                "set2" = names(peaks_list[x[2]]),
+                                                "setdiff1" = setdiff1,
+                                                "setdiff2" = setdiff2)
+                              )
+                            },
+                            simplify = FALSE)
+
+peaks_list_olap <- do.call(rbind,peaks_list_olap)
+return(peaks_list_olap)
+}
 ```
 
 
@@ -236,7 +285,7 @@ plot_overlaps <- function(overlaps_df) {
   overlaps_df %>%
   pivot_longer(is.numeric) %>%
     group_by(set1,set2) %>%
-    mutate(percentage = value / sum(value)) %>%
+    mutate(percentage =100 * value / sum(value)) %>%
     ungroup() %>%
     mutate(name = fct_relevel(name, "setdiff2","setdiff1","intersection"),
            comparison = factor(paste(set1,set2))) %>%
@@ -999,7 +1048,10 @@ macs2_peaks_reduced_list <- lapply(macs2_peaks_list, function(x) {
 
 macs2_peaks_reduced_overlap_by_element <- get_overlaps_by_element(macs2_peaks_reduced_list)
 
-  
+macs2_peaks_reduced_overlap_by_basepair <- get_overlaps_by_basepair(macs2_peaks_reduced_list)
+
+macs2_peaks_reduced_overlap_by_element2 <- get_overlaps_by_element2(macs2_peaks_reduced_list)
+
 ```
 
 3. Plot overlaps
@@ -1015,6 +1067,56 @@ macs2_peaks_reduced_overlap_by_element %>%
   select(!starts_with("union")) %>%
   plot_overlaps() +
   xlab("Overlap (N)")
+```
+
+```{r}
+macs2_peaks_reduced_overlap_by_element2 %>%
+    filter( (str_detect(set1, "P") &
+           str_detect(set2, "D") ) | (
+             str_detect(set1, "D") &
+           str_detect(set2, "P") )
+           ) %>%
+  select(!starts_with("union"),-intersection2,-setdiff2) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+macs2_peaks_reduced_overlap_by_element2 %>%
+    filter( (str_detect(set1, "P") &
+           str_detect(set2, "D") ) | (
+             str_detect(set1, "D") &
+           str_detect(set2, "P") )
+           ) %>%
+  select(!starts_with("union"),-intersection1,-setdiff1) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+```
+
+
+```{r}
+macs2_peaks_reduced_overlap_by_element %>%
+    filter( (str_detect(set1, "P") &
+           str_detect(set2, "D") ) | (
+             str_detect(set1, "D") &
+           str_detect(set2, "P") )
+           ) %>%
+  select(!starts_with("union"), -setdiff2) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+```
+
+
+D1 vs P7
+```{r}
+macs2_peaks_reduced_overlap_by_basepair %>%
+    filter( (str_detect(set1, "P") &
+           str_detect(set2, "D") ) | (
+             str_detect(set1, "D") &
+           str_detect(set2, "P") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)")
 ```
 
 D1 vs P7
@@ -1061,7 +1163,11 @@ seacr_peaks_reduced_list <- lapply(seacr_peaks_list, function(x) {
 
 seacr_peaks_reduced_overlap_by_element <- get_overlaps_by_element(seacr_peaks_reduced_list)
 
-  
+seacr_peaks_reduced_overlap_by_basepair <- get_overlaps_by_basepair(seacr_peaks_reduced_list)
+
+
+seacr_peaks_reduced_overlap_by_element2 <- get_overlaps_by_element2(seacr_peaks_reduced_list)
+
 ```
 
 3. Plot overlaps
@@ -1078,7 +1184,40 @@ seacr_peaks_reduced_overlap_by_element %>%
   plot_overlaps() +
   xlab("Overlap (N)")
 ```
+```{r}
+seacr_peaks_reduced_overlap_by_basepair %>%
+    filter( (str_detect(set1, "P") &
+           str_detect(set2, "D") ) | (
+             str_detect(set1, "D") &
+           str_detect(set2, "P") )
+           ) %>%
+  select(!starts_with("union")) %>%
+  plot_overlaps() +
+  xlab("Overlap (BP)")
+```
 
+```{r}
+seacr_peaks_reduced_overlap_by_element2 %>%
+    filter( (str_detect(set1, "P") &
+           str_detect(set2, "D") ) | (
+             str_detect(set1, "D") &
+           str_detect(set2, "P") )
+           ) %>%
+  select(!starts_with("union"),-intersection2,-setdiff2) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+seacr_peaks_reduced_overlap_by_element2 %>%
+    filter( (str_detect(set1, "P") &
+           str_detect(set2, "D") ) | (
+             str_detect(set1, "D") &
+           str_detect(set2, "P") )
+           ) %>%
+  select(!starts_with("union"),-intersection1,-setdiff1) %>%
+  plot_overlaps() +
+  xlab("Overlap (N)")
+
+```
 D1 vs P7
 ```{r}
 seacr_peaks_reduced_overlap_by_element %>%
