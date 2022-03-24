@@ -65,7 +65,7 @@ summary(width(cutnrun_peaks_union_granges))
 ```
 
 ```{r}
-sum(width(cutnrun_peaks_union_granges) > 10000)
+sum(width(cutnrun_peaks_union_granges) > 6000)
 ```
 
 ```{r eval = FALSE}
@@ -79,12 +79,25 @@ library(csaw)
 bam_files <- list.files("../data_output/cutnrun_zic/bam/",pattern = ".bam$",full.names = T)
 counts <- csaw::regionCounts(bam.files = bam_files,
                    regions = cutnrun_peaks_union_granges,
-                   param = csaw::readParam(dedup = TRUE, minq = 20))
+                   param = csaw::readParam(dedup = FALSE, minq = 20, pe = "both"))
 
 colnames(counts) <- str_split(basename(bam_files),"_",2) %>% map_chr(1)
 
 colData(counts)$rep <- str_split(colnames(counts),"-") %>% map_chr(1)
 colData(counts)$time <- str_split(colnames(counts),"-") %>% map_chr(2)
+
+```
+
+Plot of total counts per sample
+```{r}
+
+options(scipen = 9999)
+counts@colData %>% as_tibble() %>%
+  ggplot(aes(totals/1e6, paste(time, rep))) +
+  geom_col() +
+  theme_minimal() +
+  xlab("Total counts (Millions)") +
+  ylab(NULL)
 
 ```
 
@@ -100,7 +113,7 @@ deseq_obj <- DESeqDataSet(counts, design = ~ time)
 
 Prefiltering
 ```{r}
-keep <- rowSums(counts(deseq_obj)) >= 10
+keep <- rowSums(counts(deseq_obj)) >= 20
 deseq_obj <- deseq_obj[keep,]
 
 ```
@@ -111,10 +124,15 @@ deseq_obj <- deseq_obj[keep,]
 Test with contrasts by time pairs from 1 to 3, 3 to 5, 5 to 7
 ```{r}
 deseq_obj_contrasts <- DESeq(deseq_obj)
+
 res_3v1 <- results(deseq_obj_contrasts,contrast = c("time","D3Z","D1Z"))
 res_5v3 <- results(deseq_obj_contrasts,contrast = c("time","D5Z","D3Z"))
 res_7v5 <- results(deseq_obj_contrasts,contrast = c("time","D7Z","D5Z"))
-res_7v1 <- results(deseq_obj_contrasts,contrast = c("time","D7Z","D1Z"))
+
+res_7v1 <- results(deseq_obj_contrasts,
+                   contrast = c("time","D7Z","D1Z"),
+                   alpha = 0.05,
+                   altHypothesis = "greaterAbs")
 
 ```
 
@@ -144,25 +162,70 @@ res_7v5 %>%
   ggplot(aes(pvalue)) +
   geom_histogram()
 
+
+res_7v1 %>%
+  as_tibble() %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram()
+
+res_all %>%
+  as_tibble() %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram()
+
 ```
 
 
 
+# Shrinkage
+```{r}
+resultsNames(deseq_obj_contrasts)
 
+res_7v1_ashr <- lfcShrink(deseq_obj_contrasts,
+                          res  = res_7v1,
+                          type="ashr")
+
+```
+
+```{r}
+plotMA(res_7v1_ashr, ylim = c(-3,3))
+
+```
+
+```{r}
+rowRanges(deseq_obj)[res_7v1_ashr$log2FoldChange > 2.2]
+```
+
+
+```{r}
+res_7v1_ashr %>%
+  as_tibble() %>%
+  ggplot(aes(log2FoldChange, -10 * log10(padj))) +
+  geom_point(aes(color = padj < 0.05 & abs(log2FoldChange) > 1)) +
+  scale_color_manual(values = c("FALSE" = "gray","TRUE"="blue")) +
+  theme_classic() +
+  theme(aspect.ratio = 1) 
+```
 # Plots
 
 ## Volcano / MA
 ```{r}
 options(scipen = 99999)
 
-plotMA(res_3v1) 
-plotMA(res_5v3)
-plotMA(res_7v5)
-plotMA(res_7v1)
-plotMA(res_all)
+plotMA(res_3v1, alpha = 0.05) 
+plotMA(res_5v3, alpha = 0.05)
+plotMA(res_7v5, alpha = 0.05)
+plotMA(res_7v1, alpha = 0.05, ylim = c(-6,6))
 
+res_7v1_noshrink <- res_7v1
+res_7v1 <- res_7v1_ashr
 ```
 
+```{r}
+sum(replace_na(res_7v1$padj,1) < 0.05 & res_7v1$log2FoldChange > 1 )
+sum(replace_na(res_7v1$padj,1) < 0.05 & res_7v1$log2FoldChange < -1 )
+
+```
 
 
 ## Heatmap
@@ -178,7 +241,7 @@ library(ComplexHeatmap)
 
 
 plot_diffbind_heatmap <- function(vst_tab, res_obj){
-  scaled_vst <- t(scale(t(assay(vst_tab[tidyr::replace_na(res_obj$padj,1) < 0.01,]))))
+  scaled_vst <- t(scale(t(assay(vst_tab[tidyr::replace_na(res_obj$padj,1) < 0.05,]))))
   colnames(scaled_vst) <- paste((str_split(colnames(scaled_vst),"-") %>% map_chr(2)),
                                 (str_split(colnames(scaled_vst),"-") %>% map_chr(1)),sep = "-")
   
@@ -197,39 +260,16 @@ plot_diffbind_heatmap <- function(vst_tab, res_obj){
 ```
 
 ```{r}
-plot_diffbind_heatmap(vsd, res_3v1)
-plot_diffbind_heatmap(vsd, res_5v3)
-plot_diffbind_heatmap(vsd, res_7v5)
-plot_diffbind_heatmap(vsd, res_all)
-```
-```{r}
-plot_diffbind_heatmap(vsd, res_7v1)
+plot_diffbind_heatmap(vsd, res_3v1) + ggtitle("DIV3-DIV1")
+plot_diffbind_heatmap(vsd, res_5v3)+ ggtitle("DIV5-DIV3")
+plot_diffbind_heatmap(vsd, res_7v5)+ ggtitle("DIV7-DIV5")
+plot_diffbind_heatmap(vsd, res_7v1) + ggtitle("DIV7-DIV1")
+plot_diffbind_heatmap(vsd, res_all)+ ggtitle("Any timepoint")
 ```
 
 
 ```{r}
-
-  scaled_vst <- t(scale(t(assay(vsd[tidyr::replace_na(res_all$padj,1) < 0.01,]))))
-  colnames(scaled_vst) <- paste((str_split(colnames(scaled_vst),"-") %>% map_chr(2)),
-                                (str_split(colnames(scaled_vst),"-") %>% map_chr(1)),sep = "-")
-  
-  scaled_vst <- scaled_vst[, order(colnames(scaled_vst))]
-  
-  Heatmap(scaled_vst ,
-          cluster_columns = FALSE,
-          show_row_dend = FALSE,
-          row_km = 3,
-          col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
-  
-    Heatmap(scaled_vst ,
-          cluster_columns = FALSE,
-          show_row_dend = FALSE,
-          col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
-
-```
-
-```{r}
-  scaled_vst <- t(scale(t(assay(vsd[tidyr::replace_na(res_7v1$padj,1) < 0.01,]))))
+  scaled_vst <- t(scale(t(assay(vsd[tidyr::replace_na(res_7v1$padj,1) < 0.05,]))))
   colnames(scaled_vst) <- paste((str_split(colnames(scaled_vst),"-") %>% map_chr(2)),
                                 (str_split(colnames(scaled_vst),"-") %>% map_chr(1)),sep = "-")
   
@@ -239,6 +279,13 @@ plot_diffbind_heatmap(vsd, res_7v1)
           cluster_columns = FALSE,
           show_row_dend = FALSE,
           row_km = 2,
+          col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
+
+```
+```{r}
+  Heatmap(scaled_vst ,
+          cluster_columns = FALSE,
+          show_row_dend = TRUE,
           col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
 
 ```
@@ -263,9 +310,9 @@ library(ChIPseeker)
 library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
 
-peaks_7v1 <- rowRanges(deseq_obj_contrasts[tidyr::replace_na(res_7v1$padj,1) < 0.01 &
+peaks_7v1 <- rowRanges(deseq_obj_contrasts[tidyr::replace_na(res_7v1$padj,1) < 0.05 &
                                              tidyr::replace_na(res_7v1$log2FoldChange,0) > 0])
-peaks_1v7 <- rowRanges(deseq_obj_contrasts[tidyr::replace_na(res_7v1$padj,1) < 0.01 &
+peaks_1v7 <- rowRanges(deseq_obj_contrasts[tidyr::replace_na(res_7v1$padj,1) < 0.05 &
                                              tidyr::replace_na(res_7v1$log2FoldChange,0) < 0])
 
 
@@ -288,8 +335,6 @@ peaks_all_anno <- annotatePeak(peak = rowRanges(deseq_obj_contrasts),
 
 
 
-
-
 ```{r}
 
 peaks_anno_list <- list("D7" = peaks_7v1_anno,
@@ -300,11 +345,21 @@ plotAnnoBar(peaks_anno_list)
 
 ```
 
-```{r}
-summary(abs(peaks_anno_list$D7@anno$distanceToTSS))
-```
 
 # Overlap with in vivo peaks
+```{r}
+get_overlaps_by_element <- function(peaks_a, peaks_b) {
+                              intersection1 <- sum(IRanges::overlapsAny(peaks_a,peaks_b))
+                              setdiff1 <- length(peaks_a) - intersection1
+                              intersection2 <- sum(IRanges::overlapsAny(peaks_b,peaks_a))
+                              setdiff2 <-length(peaks_b) - intersection2
+                              
+                              return(data.frame("intersection1" = intersection1,
+                                                "intersection2" = intersection2,
+                                                "setdiff1" = setdiff1,
+                                                "setdiff2" = setdiff2))}
+
+```
 
 ## load ChIP peaks - reprocessed seacr
 ```{r}
@@ -321,22 +376,21 @@ names(chip_seacr_granges) <- chip_seacr_peaks_names
 
 ```
 
-
-
-
+## load ChIP peaks - reprocessed Melyssa
 ```{r}
-get_overlaps_by_element <- function(peaks_a, peaks_b) {
-                              intersection1 <- sum(IRanges::overlapsAny(peaks_a,peaks_b))
-                              setdiff1 <- length(peaks_a) - intersection1
-                              intersection2 <- sum(IRanges::overlapsAny(peaks_b,peaks_a))
-                              setdiff2 <-length(peaks_b) - intersection2
-                              
-                              return(data.frame("intersection1" = intersection1,
-                                                "intersection2" = intersection2,
-                                                "setdiff1" = setdiff1,
-                                                "setdiff2" = setdiff2))}
+chip_macs_peaks_dir <- "../data_input/melyssa_zic_data/"
+chip_macs_peaks_files <- list.files(chip_macs_peaks_dir,pattern = "bed$")
+chip_macs_peaks_full <- paste0(chip_macs_peaks_dir,chip_macs_peaks_files)
+chip_macs_peaks_names <- c("P7","NS","P60")
+
+chip_macs_granges <- lapply(chip_macs_peaks_full, import.bedGraph)
+
+names(chip_macs_granges) <- chip_macs_peaks_names
 
 ```
+
+
+
 
 ```{r}
 
@@ -362,6 +416,17 @@ all_peaks_overlaps_by_element$set2 <- c("P7", "P60", "P7", "P60")
 ```
 
 
+```{r}
+diff_peaks_overlaps_by_element <- rbind(get_overlaps_by_element(peaks_1v7, chip_macs_granges$P7),
+get_overlaps_by_element(peaks_1v7, chip_macs_granges$P60),
+get_overlaps_by_element(peaks_7v1, chip_macs_granges$P7),
+get_overlaps_by_element(peaks_7v1, chip_macs_granges$P60))
+
+
+diff_peaks_overlaps_by_element$set1 <- c("peaks_1v7" , "peaks_1v7", "peaks_7v1", "peaks_7v1")
+diff_peaks_overlaps_by_element$set2 <- c("P7", "P60", "P7", "P60")
+
+```
 
 
 
@@ -390,18 +455,63 @@ all_peaks_overlaps_by_element %>%
 
 
 ```{r}
+diff_peaks_overlaps_by_element %>%
+  dplyr::select(-setdiff2, -intersection2) %>%
+  pivot_longer(is.numeric) %>%
+    group_by(set1,set2) %>%
+    mutate(percentage = 100 * value / sum(value)) %>%
+    ungroup() %>%
+    mutate(name = fct_relevel(name,"setdiff1","intersection1"),
+           name = fct_recode(name, "overlap" = "intersection1", "no overlap" = "setdiff1"),
+           set2 = fct_relevel(set2,"P7","P60")) %>%
+    ggplot(aes(y = percentage, x = set2, fill = name)) +
+    geom_col(width = 0.5) +
+    ylab(NULL) +
+    ylab("Percentage") +
+  xlab(NULL) +
+    scale_fill_viridis_d(begin = 0.2,end = 0.8) +
+    theme_light() +
+  theme(aspect.ratio = 1.5,legend.title = element_blank()) +
+  facet_grid(~set1)
+```
+
+Get list of peaks that overlap
+
+```{r}
+peaks_1v7_invivo <- peaks_1v7[overlapsAny(peaks_1v7, chip_macs_granges$P7)]
+peaks_7v1_invivo <- peaks_7v1[overlapsAny(peaks_7v1, chip_macs_granges$P60)]
+
+```
+
+```{r}
+peaks_1v7_invivo_anno <- annotatePeak(peak = peaks_1v7_invivo,TxDb = txdb,
+                               level = "gene",
+                               assignGenomicAnnotation = T,
+                               annoDb = "org.Mm.eg.db")
+peaks_7v1_invivo_anno <- annotatePeak(peak = peaks_7v1_invivo,
+                               TxDb = txdb,
+                               level = "gene",
+                               assignGenomicAnnotation = T,
+                               annoDb = "org.Mm.eg.db")
+
+```
+
+```{r}
+peaks_anno_invivo_list <- list("D7" = peaks_7v1_invivo_anno,
+                 "D1" = peaks_1v7_invivo_anno)
+
+plotAnnoBar(peaks_anno_invivo_list)
+
 
 ```
 
 
-###
-
-# Gene set
+# Gene set enrichment
 ```{r}
 library(clusterProfiler)
 
 gene_ids_list <- lapply(peaks_anno_list,
-       function(x) x@anno$geneId[abs(x@anno$distanceToTSS) < 6000])
+       function(x) x@anno$geneId)
 
 comp_go <- compareCluster(geneCluster   = gene_ids_list,
                          fun           = "enrichGO",
@@ -410,34 +520,130 @@ comp_go <- compareCluster(geneCluster   = gene_ids_list,
                          OrgDb = org.Mm.eg.db)
 
 dotplot(comp_go)
+
 ```
 
 ```{r}
-gene_ids_list <- lapply(peaks_anno_list,
-       function(x) x@anno$geneId[abs(x@anno$distanceToTSS) < 100])
+gene_ids_list_invivo <- lapply(peaks_anno_invivo_list,
+       function(x) x@anno$geneId)
+
+comp_go <- compareCluster(geneCluster   = gene_ids_list_invivo,
+                         fun           = "enrichGO",
+                         pvalueCutoff  = 0.05,
+                         pAdjustMethod = "BH",
+                         OrgDb = org.Mm.eg.db)
+
+dotplot(comp_go)
 
 ```
 
 
 ```{r}
-genes_d7 <- bitr(gene_ids_list$D7,fromType = "ENTREZID",toType = "SYMBOL",OrgDb = org.Mm.eg.db)
-genes_d1 <- bitr(gene_ids_list$D1,fromType = "ENTREZID",toType = "SYMBOL",OrgDb = org.Mm.eg.db)
+gene_anno_list <- lapply(peaks_anno_list,
+       function(x) x@anno[abs(x@anno$distanceToTSS) < 2000])
 
+gene_anno_list_invivo <- lapply(peaks_anno_invivo_list,
+       function(x) x@anno[abs(x@anno$distanceToTSS) < 2000])
 
-
-View(genes_d1)
-
-View(genes_d7)
 ```
 
 
-Cbln3
 ```{r}
-"Cbln3" %in% genes_d7$SYMBOL
+genes_d7 <- unique(gene_anno_list$D7$SYMBOL)
+genes_d1 <- unique(gene_anno_list$D1$SYMBOL)
 
-genes_d1$SYMBOL[str_detect( genes_d1$SYMBOL,"Elav")]
+genes_d7_invivo <- unique(gene_anno_list_invivo$D7$SYMBOL)
+genes_d1_invivo <- unique(gene_anno_list_invivo$D1$SYMBOL)
+
+genes_all <- unique(peaks_anno_list$all@anno$SYMBOL)
+
+length(genes_all)
+
+unique(peaks_anno_list$all@anno$SYMBOL[peaks_anno_list$all@detailGenomicAnnotation$Promoter])
+```
+
+Check example genes
+```{r}
+
+any(str_detect(genes_d1,"Atoh1"))
+any(str_detect(genes_d1,"Elavl3"))
+
+any(str_detect(genes_d7,"Cbln3"))
+any(str_detect(genes_d7,"Gabra6"))
 
 ```
+
+## Do differentially bound genes overlap differentially knockdown genes?
+
+Read differentially expressed genes
+
+```{r}
+knockdown_genes_zic1 <- readxl::read_excel("../data_input/melyssa_zic_data/41593_2015_BFnn3995_MOESM88_ESM.xls")
+knockdown_genes_zic2 <- readxl::read_excel("../data_input/melyssa_zic_data/41593_2015_BFnn3995_MOESM88_ESM.xls",sheet = 2)
+
+```
+
+```{r}
+sum(genes_d1 %in% knockdown_genes_zic1$gene)
+sum(genes_d7 %in% knockdown_genes_zic1$gene)
+
+sum(genes_d1 %in% knockdown_genes_zic2$gene)
+sum(genes_d7 %in% knockdown_genes_zic2$gene)
+
+genes_d1[genes_d1 %in% knockdown_genes_zic1$gene]
+genes_d7[genes_d7 %in% knockdown_genes_zic1$gene]
+
+genes_d1[genes_d1 %in% knockdown_genes_zic2$gene]
+genes_d7[genes_d7 %in% knockdown_genes_zic2$gene]
+
+```
+
+```{r}
+library(UpSetR)
+upset(fromList(list("D1" = genes_d1,
+                    "D7" = genes_d7,
+                    "all_peaks" = genes_all,
+                    "KD_Zic1_decrease" = knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`<0],
+                    "KD_Zic1_increase" = knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`>0],
+                    "KD_Zic2_decrease" = knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`<0],
+                    "KD_Zic2_increase" = knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`>0])),nsets = 6)
+
+
+```
+
+```{r}
+upset(fromList(list("D1" = genes_d1,
+                    "D7" = genes_d7,
+                    "KD_Zic_decrease" = c(knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`<0],knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`<0]),
+                    "KD_Zic_increase" = c(knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`>0],knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`>0]))))
+
+```
+# Putative direct targets
+```{r}
+genes_d7[genes_d7 %in% knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`<0]]
+
+
+genes_d7[genes_d7 %in% knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`<0]]
+
+
+```
+
+
+```{r}
+
+upset(fromList(list("D1" = genes_d1_invivo,
+                    "D7" = genes_d7_invivo,
+                    "KD_Zic1" = knockdown_genes_zic1$gene,
+                    "KD_Zic2" = knockdown_genes_zic2$gene)))
+
+```
+
+```{r}
+genes_d1_invivo[genes_d1_invivo %in% knockdown_genes$gene]
+genes_d7_invivo[genes_d7_invivo %in% knockdown_genes$gene]
+
+```
+
 
 Notes:
 - Goal was to annotate peaks in terms of where they occur in the genome
@@ -469,4 +675,4 @@ https://www.ncbi.nlm.nih.gov/gds/?term=Regulation%20of%20chromatin%20accessibili
 
 - Another idea was to overlap to known enhancers
 http://www.enhanceratlas.org/downloadv2.php
-
+http://www.enhanceratlas.org/data/AllEPs/hs/Cerebellum_EP.txt

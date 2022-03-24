@@ -72,7 +72,15 @@ From looking at the overlaps
 - Changed the overlap thing to make symmetric overlaps when comparing by element.
 - Put together slides
 
+#2022-03-23
+- Add number of peaks to slides
+- Get library stats
+- Meeting
 
-- DESeq2 ChIPseq + overlap of diff peaks
-
-
+#2022-03-24
+- RNAseq overlap with diff peaks
+ -> only a few diff bound genes are affected by 
+DESeq2 ChIPseq + overlap of diff peaks
+ -> There is overlap between changing peaks in vivo + in culture 
+ 
+ 
