@@ -655,10 +655,19 @@ Notes:
   - Gain of Zic binding in GABA receptor GO category
   - The early one has some ion channel activity related GO
 
+
+- Overlap with rnaseq
+Only a few genes overlap. We could view these as "putative direct targets" but they don't look that great on the browser.
+- Overlap with previous chip seq
+There is a subset of peaks that gain binding in both in vivo and in culture samples.
+- Shrinkage
+Main takeaway is the most compelling sites that gain binding are not promoters. That is the peaks with highest logFC are not near promoters. Sometimes they are on gene bodies though.
+
 Next steps:
 - Do these gain / loss peaks are also gained / lost in vivo ?
 - Plot IGV example regions of up and down
 - Do shrinkage for sorting genes and for plots  
+
 - Characterize other timepoints
 - Try annotating "distal" peaks to the cerebellum enhancer - promoter peaks: hic files in data_input/bedpe
 Hic files are from two papers where they do hic in P4 and P22.

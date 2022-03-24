@@ -83,4 +83,6 @@ From looking at the overlaps
 DESeq2 ChIPseq + overlap of diff peaks
  -> There is overlap between changing peaks in vivo + in culture 
  
+#2022-03-25
+- Try assigning to genes with HiC
  
