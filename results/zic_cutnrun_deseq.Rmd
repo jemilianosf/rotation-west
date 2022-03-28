@@ -79,7 +79,7 @@ library(csaw)
 bam_files <- list.files("../data_output/cutnrun_zic/bam/",pattern = ".bam$",full.names = T)
 counts <- csaw::regionCounts(bam.files = bam_files,
                    regions = cutnrun_peaks_union_granges,
-                   param = csaw::readParam(dedup = FALSE, minq = 20, pe = "both"))
+                   param = csaw::readParam(dedup = FALSE, minq = 255, pe = "both"))
 
 colnames(counts) <- str_split(basename(bam_files),"_",2) %>% map_chr(1)
 
@@ -111,7 +111,7 @@ deseq_obj <- DESeqDataSet(counts, design = ~ time)
 
 ```
 
-Prefiltering
+# Prefiltering
 ```{r}
 keep <- rowSums(counts(deseq_obj)) >= 20
 deseq_obj <- deseq_obj[keep,]
