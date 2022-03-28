@@ -1,0 +1,242 @@
+---
+title: "diffbind_step7_pca_chip_vs_cutnrun"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# PCA ChIP vs CUT&RUN
+
+Goal: Which timepoints are similar between DIV1-7 - P7-60?
+Strategy: Do a PCA with both cutntun and chip datasets
+
+- Get union peaks for both cutnrun and chip peaks
+- get counts matrix
+-> scripts/diff_bind_step4_count_cutnrun_chip.R
+- do PCA
+
+## Read counts
+
+```{r}
+library(DESeq2)
+deseq_obj <- readRDS("../data_output/diffbind_cutnrun_zic/deseq_obj_chip_cutnrun.Rds")
+
+```
+
+## Prefiltering
+```{r}
+keep <- rowSums(counts(deseq_obj)) >= 20
+deseq_obj <- deseq_obj[keep,]
+
+```
+
+## VST
+```{r}
+deseq_cutnrun_vst <- vst(deseq_obj[,1:12],blind = TRUE)
+deseq_chip_vst <- vst(deseq_obj[,13:16],blind = TRUE)
+deseq_vst <- vst(deseq_obj,blind = TRUE)
+
+```
+
+PCA default uses 500 most variable peaks by var
+```{r}
+library(tidyverse)
+
+plotPCA(object = deseq_cutnrun_vst,intgroup=c("time")) + 
+  theme(aspect.ratio =1)
+
+plotPCA(object = deseq_chip_vst,intgroup=c("time")) + 
+  theme(aspect.ratio =1)
+
+plotPCA(object = deseq_vst,intgroup=c("time")) + 
+  theme(aspect.ratio =1)
+
+```
+
+Try using more peaks 
+```{r}
+plotPCA(object = deseq_cutnrun_vst,intgroup=c("time"), ntop = 25000) + 
+  theme(aspect.ratio =1)
+
+plotPCA(object = deseq_chip_vst,intgroup=c("time"), ntop = 25000) + 
+  theme(aspect.ratio =1)
+
+plotPCA(object = deseq_vst,intgroup=c("time"), ntop = 25000) + 
+  theme(aspect.ratio =1)
+
+```
+
+
+
+
+Looking at PC3, 4 etc..
+
+
+Modify plotPCA function to select any number of comps
+```{r}
+plotPCA.DESeqTransform = function(object, comp1=1,comp2=2,intgroup="condition", ntop=500, returnData=FALSE)
+{
+  # calculate the variance for each gene
+  rv <- rowVars(assay(object))
+
+  # select the ntop genes by variance
+  select <- order(rv, decreasing=TRUE)[seq_len(min(ntop, length(rv)))]
+
+  # perform a PCA on the data in assay(x) for the selected genes
+  pca <- prcomp(t(assay(object)[select,]))
+
+  # the contribution to the total variance for each component
+  percentVar <- pca$sdev^2 / sum( pca$sdev^2 )
+
+  if (!all(intgroup %in% names(colData(object)))) {
+    stop("the argument 'intgroup' should specify columns of colData(dds)")
+  }
+
+  intgroup.df <- as.data.frame(colData(object)[, intgroup, drop=FALSE])
+  
+  # add the intgroup factors together to create a new grouping factor
+  group <- if (length(intgroup) > 1) {
+    factor(apply( intgroup.df, 1, paste, collapse=":"))
+  } else {
+    colData(object)[[intgroup]]
+  }
+
+  # assembly the data for the plot
+  d <- data.frame(comp1=pca$x[,comp1],
+                  comp2=pca$x[,comp2],
+                  group=group, intgroup.df, name=colnames(object))
+
+  if (returnData) {
+    attr(d, "percentVar") <- percentVar[c(comp1,comp2)]
+    return(d)
+  }
+  
+  ggplot(data=d, aes_string(x="comp1", y="comp2", color="group")) + geom_point(size=3) + 
+    xlab(paste0("comp1: ",round(percentVar[comp1] * 100),"% variance")) +
+      ylab(paste0("comp2: ",round(percentVar[comp2] * 100),"% variance")) +
+        coord_fixed()
+}
+```
+
+```{r}
+plotPCA.DESeqTransform(deseq_vst,comp1 = 2, comp2 = 3, ntop = 5000, intgroup = "time")
+
+plotPCA.DESeqTransform(deseq_vst,comp1 = 2, comp2 = 3, ntop = 25000, intgroup = "time")
+```
+
+
+# Try counting with seacr peaks 
+
+```{r eval = FALSE}
+library(rtracklayer)
+peaks_union_granges <- import("../data_output/bed/cutnrun_zic_seacr_peaks_union.bed")
+library(tidyverse)
+library(csaw)
+bam_files <- list.files("../data_output/cutnrun_zic/bam/",pattern = ".bam$",full.names = T)
+bam_files <- c(bam_files, list.files("../data_output/chip_zic/chip_bam_melyssa/",pattern = ".bam$",full.names = T))
+
+
+counts_cutnrun <- csaw::regionCounts(bam.files = bam_files[1:12],
+                             regions = peaks_union_granges,
+                             param = csaw::readParam(dedup = FALSE, minq = 255,max.frag=1000, pe = "both"))
+
+counts_chip <- csaw::regionCounts(bam.files = bam_files[13:16],
+                                     regions = peaks_union_granges,
+                                     param = csaw::readParam(dedup = FALSE, minq = 255,max.frag=1000))
+counts <- cbind(counts_cutnrun, counts_chip)
+# Get counts matrix
+bam_names <- str_split(basename(bam_files),"_",2) %>% map_chr(1)
+bam_names <- str_remove(bam_names,"Aligned.sortedByCoord.out.bam")
+
+bam_names[13:16] <- paste(bam_names[13:16],c("P7","P7","P60","P60"), sep = "-")
+
+colnames(counts) <- bam_names
+
+colData(counts)$rep <- str_split(colnames(counts),"-") %>% map_chr(1)
+colData(counts)$time <- str_split(colnames(counts),"-") %>% map_chr(2)
+
+# Get DESEq object
+library(DESeq2)
+
+deseq_obj <- DESeqDataSet(counts, design = ~ time)
+
+
+saveRDS(deseq_obj, "../data_output/diffbind_cutnrun_zic/deseq_obj_chip_cutnrun_cutnrun_union.Rds")
+
+```
+
+```{r}
+deseq_obj_cutnrun_union <- readRDS( "../data_output/diffbind_cutnrun_zic/deseq_obj_chip_cutnrun_cutnrun_union.Rds")
+
+```
+
+## VST with cutnrun union
+```{r}
+deseq_cutnrun_vst <- vst(deseq_obj_cutnrun_union[,1:12],blind = TRUE)
+deseq_chip_vst <- vst(deseq_obj_cutnrun_union[,13:16],blind = TRUE)
+deseq_vst <- vst(deseq_obj_cutnrun_union,blind = TRUE)
+
+```
+
+PCA default uses 500 most variable peaks by var
+```{r}
+library(tidyverse)
+
+plotPCA(object = deseq_cutnrun_vst,intgroup=c("time")) + 
+  theme(aspect.ratio =1)
+
+plotPCA(object = deseq_chip_vst,intgroup=c("time")) + 
+  theme(aspect.ratio =1)
+
+plotPCA(object = deseq_vst,intgroup=c("time")) + 
+  theme(aspect.ratio =1)
+
+```
+
+Try using more peaks 
+```{r}
+plotPCA(object = deseq_cutnrun_vst,intgroup=c("time"), ntop = 5000) + 
+  theme(aspect.ratio =1)
+
+plotPCA(object = deseq_chip_vst,intgroup=c("time"), ntop = 5000) + 
+  theme(aspect.ratio =1)
+
+plotPCA(object = deseq_vst,intgroup=c("time"), ntop = 5000) + 
+  theme(aspect.ratio =1)
+
+plotPCA(object = deseq_cutnrun_vst,intgroup=c("time"), ntop = 25000) + 
+  theme(aspect.ratio =1)
+
+plotPCA(object = deseq_chip_vst,intgroup=c("time"), ntop = 25000) + 
+  theme(aspect.ratio =1)
+
+plotPCA(object = deseq_vst,intgroup=c("time"), ntop = 25000) + 
+  theme(aspect.ratio =1)
+
+```
+
+
+Looking at PC3, 4 etc..
+
+```{r}
+plotPCA.DESeqTransform(deseq_vst,comp1 = 2, comp2 = 3, ntop = 5000, intgroup = "time")
+
+plotPCA.DESeqTransform(deseq_vst,comp1 = 2, comp2 = 3, ntop = 25000, intgroup = "time")
+```
+
+
+
+Notes: 
+- Main thing, there is a lot of variation due to experiment:
+- I think PC1 separates cutnrun vs chip
+- PC2 separates by time
+- P7 aligns with early DIVs in PC2, and is actually also closer to in vitro in PC1
+- P60 is very different from everything else... but
+- In PC2 seems to align towards later timepoints, or at least after D3 
+- Interpretation is that after the in vitro switch, there is a lag in the activation of programs required for maturation, so after three days there are "in vivo" binding that is also recapitulated in vitro... because these regions were already instructed to do so before culture started... and these peaks would remain in vivo until p60, so there is this similarity of p60 with after DIV3,   but after a few days it stops recapitulating the peaks so days 5 - 7 are less similar?
+- But there is also the issue that later timepoints are less reproducible
+- This might be due to either experimental or biological differences (like @ later timepoints neurons are more different to each other due to maturation etc), but looking at the library stats I'd guess these are more experimental (like there is one replicate with more sequencing)
+
+
