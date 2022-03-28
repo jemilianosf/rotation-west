@@ -84,5 +84,23 @@ DESeq2 ChIPseq + overlap of diff peaks
  -> There is overlap between changing peaks in vivo + in culture 
  
 #2022-03-25
-- Try assigning to genes with HiC
- 
+- Re-organize DESeq script
+- Rank promoters by peak lfc and visualize top peaks
+- Assigning peaks to genes with list of cerebellum mapped enhancer - gene pairs
+- Assigning peaks to genes with HiC
+- Overlap with H3K27me3 peaks
+- Correlation of tracks
+- Density plot around tss, around peaks
+
+#2022-03-28
+- Added split markdowns of gene overlaps into overlaps and overlaps kdrna markdowns. 
+- PCA with chip dataset results/diffbind_step7_pca_chip_vs_cutnrun.Rmd.
+- MACS paper
+
+#2022-03-29
+To do:
+- Do suggestions on overlaps kdrna analysis:
+  - Focus on genes that change, where is the nearest diff peak? where is the nearest peak?
+- Do enhancer-promoter peak assignments with P4 hic data.
+
+
