@@ -1,0 +1,173 @@
+---
+title: "diffbind_step3_dbplots"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Read results
+
+```{r}
+res_3v1 <- readRDS("../data_output/diffbind_cutnrun_zic/res_3v1_ashr.Rds")
+res_5v3 <- readRDS("../data_output/diffbind_cutnrun_zic/res_5v3_ashr.Rds")
+res_7v5 <- readRDS("../data_output/diffbind_cutnrun_zic/res_7v5_ashr.Rds")
+res_7v1 <- readRDS("../data_output/diffbind_cutnrun_zic/res_7v1_ashr.Rds")
+res_all <- readRDS("../data_output/diffbind_cutnrun_zic/res_all_ashr.Rds")
+```
+
+# Plots
+```{r}
+library(tidyverse)
+```
+
+## P value histogram
+
+```{r}
+res_3v1 %>%
+  as_tibble() %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram()
+
+res_5v3 %>%
+  as_tibble() %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram()
+
+res_7v5 %>%
+  as_tibble() %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram()
+
+res_7v1 %>%
+  as_tibble() %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram()
+
+res_all %>%
+  as_tibble() %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram()
+
+```
+
+## MA 
+
+```{r}
+plotMA(res_3v1, main = "DIV3-DIV1", alpha = 0.05, ylim = c(-3,3)) 
+plotMA(res_5v3, main = "DIV5-DIV3", alpha = 0.05, ylim = c(-1,1))
+plotMA(res_7v5, main = "DIV7-DIV5", alpha = 0.05, ylim = c(-1,1))
+plotMA(res_7v1, main = "DIV7-DIV1", alpha = 0.05, ylim = c(-3,3))
+
+```
+
+## Volcano
+
+```{r}
+plot_volcano <- function(res){
+  res %>%
+    as_tibble() %>%
+    ggplot(aes(log2FoldChange, -10 * log10(padj))) +
+    geom_point(aes(color = padj < 0.05 )) +
+    scale_color_manual(values = c("FALSE" = "gray","TRUE"="blue")) +
+    theme_classic() +
+    theme(aspect.ratio = 1) 
+}
+```
+
+```{r}
+plot_volcano(res_3v1) + ggtitle("DIV3-DIV1")
+plot_volcano(res_5v3) + ggtitle("DIV5-DIV3")
+plot_volcano(res_7v5) + ggtitle("DIV7-DIV5")
+plot_volcano(res_7v1) + ggtitle("DIV7-DIV1")
+
+```
+
+## Heatmap
+
+Get vst counts
+```{r}
+deseq_obj_contrasts <- readRDS("../data_output/diffbind_cutnrun_zic/deseq_obj_contrasts.Rds")
+
+vsd <- vst(deseq_obj_contrasts, blind=FALSE)
+
+
+```
+
+```{r}
+library(ComplexHeatmap)
+
+
+plot_diffbind_heatmap <- function(vst_tab, res_obj){
+  scaled_vst <- t(scale(t(assay(vst_tab[tidyr::replace_na(res_obj$padj,1) < 0.05,]))))
+  colnames(scaled_vst) <- paste((str_split(colnames(scaled_vst),"-") %>% map_chr(2)),
+                                (str_split(colnames(scaled_vst),"-") %>% map_chr(1)),sep = "-")
+  
+  scaled_vst <- scaled_vst[, order(colnames(scaled_vst))]
+  
+  Heatmap(scaled_vst ,
+          cluster_columns = FALSE,
+          show_row_dend = FALSE,
+          col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
+  
+} 
+
+
+
+
+```
+
+```{r}
+plot_diffbind_heatmap(vsd, res_3v1) + ggtitle("DIV3-DIV1")
+plot_diffbind_heatmap(vsd, res_5v3)+ ggtitle("DIV5-DIV3")
+plot_diffbind_heatmap(vsd, res_7v5)+ ggtitle("DIV7-DIV5")
+plot_diffbind_heatmap(vsd, res_7v1) + ggtitle("DIV7-DIV1")
+plot_diffbind_heatmap(vsd, res_all)+ ggtitle("Any timepoint")
+```
+
+DIV7-DIV1 K means
+
+```{r}
+scaled_vst <- t(scale(t(assay(vsd[tidyr::replace_na(res_7v1$padj,1) < 0.05,]))))
+colnames(scaled_vst) <- paste((str_split(colnames(scaled_vst),"-") %>% map_chr(2)),
+                              (str_split(colnames(scaled_vst),"-") %>% map_chr(1)),sep = "-")
+
+scaled_vst <- scaled_vst[, order(colnames(scaled_vst))]
+
+Heatmap(scaled_vst ,
+        cluster_columns = FALSE,
+        show_row_dend = FALSE,
+        row_km = 2,
+        col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
+
+```
+
+DIV7-DIV1 K means
+
+```{r}
+scaled_vst <- t(scale(t(assay(vsd[tidyr::replace_na(res_7v1$padj,1) < 0.05 & abs(tidyr::replace_na(res_7v1$log2FoldChange,1)) > 1.5,]))))
+colnames(scaled_vst) <- paste((str_split(colnames(scaled_vst),"-") %>% map_chr(2)),
+                              (str_split(colnames(scaled_vst),"-") %>% map_chr(1)),sep = "-")
+
+scaled_vst <- scaled_vst[, order(colnames(scaled_vst))]
+
+Heatmap(scaled_vst ,
+        cluster_columns = FALSE,
+        show_row_dend = FALSE,
+        row_km = 2,
+        col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
+
+```
+
+# Notes: 
+
+- In general there seems to be three large groups:
+
+- Peaks that loose binding 1 -> 7
+- Peaks that gain binding 1 -> 7 
+For both of these there might be subgroups of different gain/loss timing (i.e. some binding is gained by day 3, others 5 etc)
+- Peaks gain and then loose (gain by 3 then start loosing) Could it be due to cell culture?
+
+
+

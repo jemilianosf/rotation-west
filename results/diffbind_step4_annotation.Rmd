@@ -1,0 +1,62 @@
+---
+title: "diffbind_step4_annotation_plots"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(ChIPseeker)
+```
+
+# Read annotations
+```{r}
+peaks_7v1_anno <- readRDS("../data_output/diffbind_cutnrun_zic/peaks_7v1_up_annotation.Rds")
+peaks_1v7_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_down_annotation.Rds")
+peaks_all_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_all_annotation.Rds")
+
+```
+
+```{r}
+peaks_anno_list <- list("D7" = peaks_7v1_anno,
+                 "D1" = peaks_1v7_anno,
+                 "all" = peaks_all_anno)
+
+```
+
+
+# Plot distributions
+```{r}
+
+
+plotAnnoBar(peaks_anno_list)
+
+```
+
+
+# Gene set enrichment
+```{r}
+library(clusterProfiler)
+
+gene_ids_list <- lapply(peaks_anno_list,
+       function(x) x@anno$geneId[str_detect(x@anno$annotation,"Promoter")])
+
+comp_go <- compareCluster(geneCluster   = gene_ids_list,
+                         fun           = "enrichGO",
+                         pvalueCutoff  = 0.05,
+                         pAdjustMethod = "BH",
+                         OrgDb = org.Mm.eg.db)
+
+dotplot(comp_go)
+
+```
+
+
+# Sort genes by fold change
+```{r}
+
+```
+
+
+

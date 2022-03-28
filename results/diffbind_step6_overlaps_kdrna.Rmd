@@ -1,0 +1,130 @@
+---
+title: "diffbind_step5_overlaps"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Do differentially bound genes overlap differentially knockdown genes?
+
+Read annotated peaks
+```{r}
+peaks_7v1_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_up_annotation.Rds")
+peaks_1v7_anno <- readRDS( file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_down_annotation.Rds")
+peaks_all_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_all_annotation.Rds")
+
+```
+
+```{r}
+peaks_anno_list <- list("D7" = peaks_7v1_anno,
+                 "D1" = peaks_1v7_anno,
+                 "all" = peaks_all_anno)
+
+gene_anno_list <- lapply(peaks_anno_list,
+       function(x) x@anno[x@detailGenomicAnnotation$Promoter])
+
+```
+
+
+```{r}
+
+genes_d7 <- unique(gene_anno_list$D7$SYMBOL )
+genes_d1 <- unique(gene_anno_list$D1$SYMBOL)
+genes_all <- unique(gene_anno_list$all$SYMBOL)
+```
+
+
+Read differentially expressed genes
+
+```{r}
+knockdown_genes_zic1 <- readxl::read_excel("../data_input/melyssa_zic_data/41593_2015_BFnn3995_MOESM88_ESM.xls")
+knockdown_genes_zic2 <- readxl::read_excel("../data_input/melyssa_zic_data/41593_2015_BFnn3995_MOESM88_ESM.xls",sheet = 2)
+
+```
+
+```{r}
+sum(genes_d1 %in% knockdown_genes_zic1$gene)
+sum(genes_d7 %in% knockdown_genes_zic1$gene)
+
+sum(genes_d1 %in% knockdown_genes_zic2$gene)
+sum(genes_d7 %in% knockdown_genes_zic2$gene)
+
+genes_d1[genes_d1 %in% knockdown_genes_zic1$gene]
+
+genes_d1[genes_d1 %in% knockdown_genes_zic2$gene]
+
+genes_d7[genes_d7 %in% knockdown_genes_zic1$gene]
+
+genes_d7[genes_d7 %in% knockdown_genes_zic2$gene]
+
+```
+
+```{r}
+library(UpSetR)
+upset(fromList(list("D1" = genes_d1,
+                    "D7" = genes_d7,
+                    "all_peaks" = genes_all,
+                    "KD_Zic1_decrease" = knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`<0],
+                    "KD_Zic1_increase" = knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`>0],
+                    "KD_Zic2_decrease" = knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`<0],
+                    "KD_Zic2_increase" = knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`>0])),nsets = 7)
+
+
+```
+```{r}
+upset(fromList(list("D1" = genes_d1,
+                    "D7" = genes_d7,
+                    "KD_Zic1_decrease" = knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`<0],
+                    "KD_Zic1_increase" = knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`>0],
+                    "KD_Zic2_decrease" = knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`<0],
+                    "KD_Zic2_increase" = knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`>0])),nsets = 7)
+
+```
+
+
+```{r}
+upset(fromList(list("D7" = genes_d7,
+                    "KD_Zic1_decrease" = knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`<0],
+                    "KD_Zic2_decrease" = knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`<0])),nsets = 7)
+
+```
+
+```{r}
+upset(fromList(list("D1" = genes_d1,
+                    "D7" = genes_d7,
+                    "KD_Zic_decrease" = c(knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`<0],knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`<0]),
+                    "KD_Zic_increase" = c(knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`>0],knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`>0]))))
+
+```
+# Putative direct targets
+```{r}
+genes_d7[genes_d7 %in% knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`<0]]
+
+
+genes_d7[genes_d7 %in% knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`<0]]
+
+
+```
+
+
+```{r}
+
+upset(fromList(list("D1" = genes_d1_invivo,
+                    "D7" = genes_d7_invivo,
+                    "KD_Zic1" = knockdown_genes_zic1$gene,
+                    "KD_Zic2" = knockdown_genes_zic2$gene)))
+
+```
+
+```{r}
+genes_d1_invivo[genes_d1_invivo %in% knockdown_genes$gene]
+genes_d7_invivo[genes_d7_invivo %in% knockdown_genes$gene]
+
+```
+
+
+# Plot overlaps from the genes perspectives
+
+

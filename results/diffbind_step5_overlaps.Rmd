@@ -1,0 +1,138 @@
+---
+title: "diffbind_step5_overlaps"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(rtracklayer)
+```
+
+# Overlap with in vivo peaks
+```{r}
+get_overlaps_by_element <- function(peaks_a, peaks_b) {
+                              intersection1 <- sum(IRanges::overlapsAny(peaks_a,peaks_b))
+                              setdiff1 <- length(peaks_a) - intersection1
+                              intersection2 <- sum(IRanges::overlapsAny(peaks_b,peaks_a))
+                              setdiff2 <-length(peaks_b) - intersection2
+                              
+                              return(data.frame("intersection1" = intersection1,
+                                                "intersection2" = intersection2,
+                                                "setdiff1" = setdiff1,
+                                                "setdiff2" = setdiff2))}
+
+```
+
+## load ChIP peaks - reprocessed Melyssa
+```{r}
+chip_macs_peaks_dir <- "../data_input/melyssa_zic_data/"
+chip_macs_peaks_files <- list.files(chip_macs_peaks_dir,pattern = "bed$")
+chip_macs_peaks_full <- paste0(chip_macs_peaks_dir,chip_macs_peaks_files)
+chip_macs_peaks_names <- c("P7","NS","P60")
+
+chip_macs_granges <- lapply(chip_macs_peaks_full, import.bedGraph)
+
+names(chip_macs_granges) <- chip_macs_peaks_names
+
+```
+
+## Load Cut&Run peaks - seacr
+
+```{r}
+peaks_1v7 <- rtracklayer::import("../data_output/diffbind_cutnrun_zic/res_7v1_down.bed")
+peaks_7v1 <- rtracklayer::import("../data_output/diffbind_cutnrun_zic/res_7v1_up.bed")
+```
+
+
+# Get overlaps by element
+
+```{r}
+diff_peaks_overlaps_by_element <- rbind(get_overlaps_by_element(peaks_1v7, chip_macs_granges$P7),
+get_overlaps_by_element(peaks_1v7, chip_macs_granges$P60),
+get_overlaps_by_element(peaks_7v1, chip_macs_granges$P7),
+get_overlaps_by_element(peaks_7v1, chip_macs_granges$P60))
+
+
+diff_peaks_overlaps_by_element$set1 <- c("peaks_1v7" , "peaks_1v7", "peaks_7v1", "peaks_7v1")
+diff_peaks_overlaps_by_element$set2 <- c("P7", "P60", "P7", "P60")
+
+```
+
+# Plot percentages
+
+```{r}
+library(tidyverse)
+diff_peaks_overlaps_by_element %>%
+  dplyr::select(-setdiff2, -intersection2) %>%
+  pivot_longer(where(is.numeric)) %>%
+    group_by(set1,set2) %>%
+    mutate(percentage = 100 * value / sum(value)) %>%
+    ungroup() %>%
+    mutate(name = fct_relevel(name,"setdiff1","intersection1"),
+           name = fct_recode(name, "overlap" = "intersection1", "no overlap" = "setdiff1"),
+           set2 = fct_relevel(set2,"P7","P60")) %>%
+    ggplot(aes(y = percentage, x = set2, fill = name)) +
+    geom_col(width = 0.5) +
+    ylab(NULL) +
+    ylab("Percentage") +
+  xlab(NULL) +
+    scale_fill_viridis_d(begin = 0.2,end = 0.8) +
+    theme_light() +
+  theme(aspect.ratio = 1.5,legend.title = element_blank()) +
+  facet_grid(~set1)
+```
+
+Get list of peaks that overlap
+
+```{r}
+peaks_1v7_invivo <- peaks_1v7[overlapsAny(peaks_1v7, chip_macs_granges$P7)]
+peaks_7v1_invivo <- peaks_7v1[overlapsAny(peaks_7v1, chip_macs_granges$P60)]
+
+```
+
+```{r}
+library(ChIPseeker)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+peaks_1v7_invivo_anno <- annotatePeak(peak = peaks_1v7_invivo,TxDb = txdb,
+                               level = "gene",
+                               assignGenomicAnnotation = T,
+                               annoDb = "org.Mm.eg.db")
+peaks_7v1_invivo_anno <- annotatePeak(peak = peaks_7v1_invivo,
+                               TxDb = txdb,
+                               level = "gene",
+                               assignGenomicAnnotation = T,
+                               annoDb = "org.Mm.eg.db")
+
+```
+
+```{r}
+peaks_anno_invivo_list <- list("D7" = peaks_7v1_invivo_anno,
+                 "D1" = peaks_1v7_invivo_anno)
+
+plotAnnoBar(peaks_anno_invivo_list)
+
+
+```
+
+```{r}
+gene_ids_list_invivo <- lapply(peaks_anno_invivo_list,
+       function(x) x@anno$geneId)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+comp_go <- compareCluster(geneCluster   = gene_ids_list_invivo,
+                         fun           = "enrichGO",
+                         pvalueCutoff  = 0.05,
+                         pAdjustMethod = "BH",
+                         OrgDb = org.Mm.eg.db)
+
+dotplot(comp_go)
+
+```
+
+
+
+
