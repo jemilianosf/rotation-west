@@ -92,6 +92,14 @@ peaks_7v1_invivo <- peaks_7v1[overlapsAny(peaks_7v1, chip_macs_granges$P60)]
 
 ```
 
+
+```{r eval = FALSE}
+saveRDS(peaks_7v1_invivo,file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_invivo.Rds")
+
+saveRDS(peaks_1v7_invivo,file = "../data_output/diffbind_cutnrun_zic/peaks_1v7_invivo.Rds")
+```
+
+
 ```{r}
 library(ChIPseeker)
 library(TxDb.Mmusculus.UCSC.mm10.knownGene)
