@@ -45,6 +45,14 @@ knockdown_genes_zic2 <- readxl::read_excel("../data_input/melyssa_zic_data/41593
 ```
 
 ```{r}
+knockdown_genes_zic1_down <- knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)` < 0]
+knockdown_genes_zic1_up <- knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)` > 0]
+knockdown_genes_zic2_down <- knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)` < 0]
+knockdown_genes_zic2_up <- knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)` > 0]
+```
+
+
+```{r}
 sum(genes_d1 %in% knockdown_genes_zic1$gene)
 sum(genes_d7 %in% knockdown_genes_zic1$gene)
 
@@ -108,7 +116,7 @@ genes_d7[genes_d7 %in% knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold
 
 ```
 
-
+Intersect in vivo peaks
 ```{r}
 
 upset(fromList(list("D1" = genes_d1_invivo,
@@ -126,5 +134,395 @@ genes_d7_invivo[genes_d7_invivo %in% knockdown_genes$gene]
 
 
 # Plot overlaps from the genes perspectives
+
+For each gene we want to know:
+- Gene kd up or down
+- Distance of tss to nearest Zic peak
+- Is Zic peak differential up / down / none
+- Is peak in vivo?
+
+```{r}
+library(tidyverse)
+knockdown_genes_zic1_anno <- peaks_anno_list$all@anno[peaks_anno_list$all@anno$SYMBOL %in% c(knockdown_genes_zic1_up,knockdown_genes_zic1_down) ]
+
+
+knockdown_genes_zic1_anno <- knockdown_genes_zic1_anno %>%
+  as_tibble() %>%
+  group_by(SYMBOL) %>%
+  mutate(is_min = distanceToTSS == min(distanceToTSS)) %>%
+  filter(is_min) %>%
+  ungroup()
+
+
+```
+
+```{r}
+options(scipen = 9999)
+knockdown_genes_zic1_anno <- knockdown_genes_zic1_anno %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL, abs(distanceToTSS),.desc = TRUE),
+         direction = case_when(
+           log2FoldChange > 0  & padj < 0.05 ~ "up" ,
+           log2FoldChange < 0  & padj < 0.05 ~ "down",
+           log2FoldChange > 0  & padj > 0.05 ~ "up_ns" ,
+           log2FoldChange < 0  & padj > 0.05 ~ "down_ns",
+         ),
+         padj = replace_na(padj, 1),
+         knockdown_zic1 = case_when(
+           SYMBOL %in% knockdown_genes_zic1_up ~ "up",
+           SYMBOL %in% knockdown_genes_zic1_down ~"down",
+           TRUE ~ "ns"
+         ))
+```
+
+
+# For each knockdown gene, how close to its TSS is the nearest peak, and does it change?
+
+```{r}
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "down") %>%
+ggplot(aes(  abs(distanceToTSS) + 2,SYMBOL, fill = direction)) +
+  geom_col() +
+  scale_x_log10() +
+  geom_vline(xintercept = 6000) +
+  scale_fill_manual(values = c("down" ="blue","down_ns"="gray","up"="red","up_ns"="gray"))
+
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "up") %>%
+ggplot(aes(  abs(distanceToTSS) + 2,SYMBOL, fill = direction)) +
+  geom_col() +
+  scale_x_log10() +
+  geom_vline(xintercept = 6000) +
+  scale_fill_manual(values = c("down" ="blue","down_ns"="gray","up"="red","up_ns"="gray"))
+
+```
+```{r}
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "down") %>%
+ggplot(aes(  abs(distanceToTSS) + 2,SYMBOL, fill = direction)) +
+  geom_col() +
+  scale_x_log10() +
+  geom_vline(xintercept = 6000) +
+  scale_fill_manual(values = c("down" ="blue","down_ns"="lightblue","up"="red","up_ns"="pink"))
+
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "up") %>%
+ggplot(aes(  abs(distanceToTSS) + 2,SYMBOL, fill = direction)) +
+  geom_col() +
+  scale_x_log10() +
+  geom_vline(xintercept = 6000) +
+  scale_fill_manual(values = c("down" ="blue","down_ns"="lightblue","up"="red","up_ns"="pink"))
+
+```
+# For each knockdown gene, how close to its TSS is the nearest significantly different peak, and what is the fold change?
+
+
+# For each knockdown gene, how many peaks overlap, and are they significantly different?
+
+read in vivo peaks
+```{r}
+peaks_7v1_invivo <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_invivo.Rds")
+
+peaks_1v7_invivo <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_1v7_invivo.Rds")
+
+peaks_7v1_invivo
+```
+
+```{r}
+knockdown_genes_zic1_anno <- peaks_anno_list$all@anno[peaks_anno_list$all@anno$SYMBOL %in% c(knockdown_genes_zic1_up,knockdown_genes_zic1_down) ]
+knockdown_genes_zic2_anno <- peaks_anno_list$all@anno[peaks_anno_list$all@anno$SYMBOL %in% c(knockdown_genes_zic2_up,knockdown_genes_zic2_down) ]
+
+knockdown_genes_zic1_anno$invivo_up <- overlapsAny(knockdown_genes_zic1_anno,peaks_7v1_invivo,type = "equal")
+knockdown_genes_zic1_anno$invivo_down <- overlapsAny(knockdown_genes_zic1_anno,peaks_1v7_invivo,type = "equal")
+
+knockdown_genes_zic2_anno$invivo_up <- overlapsAny(knockdown_genes_zic2_anno,peaks_7v1_invivo,type = "equal")
+knockdown_genes_zic2_anno$invivo_down <- overlapsAny(knockdown_genes_zic2_anno,peaks_1v7_invivo,type = "equal")
+
+
+```
+
+```{r}
+library(tidyverse)
+theme_set(theme_minimal())
+theme_replace(aspect.ratio = 1)
+
+knockdown_genes_zic1_anno <- knockdown_genes_zic1_anno %>%
+  as_tibble() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL, abs(distanceToTSS),.desc = TRUE),
+         direction = case_when(
+           log2FoldChange > 0  & padj < 0.05 ~ "up" ,
+           log2FoldChange < 0  & padj < 0.05 ~ "down",
+           TRUE ~ "ns",
+         ),
+         padj = replace_na(padj, 1),
+         knockdown_zic1 = case_when(
+           SYMBOL %in% knockdown_genes_zic1_up ~ "up",
+           SYMBOL %in% knockdown_genes_zic1_down ~"down",
+           TRUE ~ "ns"
+         ))
+
+knockdown_genes_zic2_anno <- knockdown_genes_zic2_anno %>%
+  as_tibble() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL, abs(distanceToTSS),.desc = TRUE),
+         direction = case_when(
+           log2FoldChange > 0  & padj < 0.05 ~ "up" ,
+           log2FoldChange < 0  & padj < 0.05 ~ "down",
+           TRUE ~ "ns",
+         ),
+         padj = replace_na(padj, 1),
+         knockdown_zic2 = case_when(
+           SYMBOL %in% knockdown_genes_zic2_up ~ "up",
+           SYMBOL %in% knockdown_genes_zic2_down ~"down",
+           TRUE ~ "ns"
+         ))
+
+```
+
+
+Whole gene Zic1
+```{r}
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "down") %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic1 KD Down")
+
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "up") %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic1 KD Up")
+
+```
+
+Whole gene Zic1 overlap in vivo
+```{r}
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "down",invivo_up | invivo_down) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic1 KD Down, in vivo overlap")
+
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "up",invivo_up | invivo_down) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic1 KD Up, in vivo overlap")
+
+```
+
+
+whole gene Zic2 
+```{r}
+knockdown_genes_zic2_anno %>%
+  filter(knockdown_zic2 == "down") %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic2 KD Down")
+
+knockdown_genes_zic2_anno %>%
+  filter(knockdown_zic2 == "up") %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic2 KD Up")
+
+```
+whole gene zic2 in vivo overlap
+```{r}
+knockdown_genes_zic2_anno %>%
+  filter(knockdown_zic2 == "down", invivo_up | invivo_down) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic2 KD Down, in vivo overlap")
+
+knockdown_genes_zic2_anno %>%
+  filter(knockdown_zic2 == "up",invivo_up | invivo_down) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic2 KD Up, in vivo overlap")
+
+```
+
+Promoter
+```{r}
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "down",
+         str_detect(annotation,"Promoter") ) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic1 KD Up, Peaks at Promoters (+/- 3Kb TSS)")
+
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "up",
+          str_detect(annotation,"Promoter") ) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic1 KD Down, Peaks at Promoters (+/- 3Kb TSS)")
+
+```
+```{r}
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "down",
+         str_detect(annotation,"Promoter") , invivo_up | invivo_down ) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic1 KD Up, Peaks at Promoters (+/- 3Kb TSS), in vivo overlaps")
+
+knockdown_genes_zic1_anno %>%
+  filter(knockdown_zic1 == "up",
+          str_detect(annotation,"Promoter") , invivo_up | invivo_down ) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic1 KD Down, Peaks at Promoters (+/- 3Kb TSS), in vivo overlaps")
+
+```
+
+
+```{r}
+knockdown_genes_zic2_anno %>%
+  filter(knockdown_zic2 == "down",
+         str_detect(annotation,"Promoter") ) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic2 KD Up, Peaks at Promoters (+/- 3Kb TSS)")
+
+knockdown_genes_zic2_anno %>%
+  filter(knockdown_zic2 == "up",
+          str_detect(annotation,"Promoter") ) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic2 KD Up, Peaks at Promoters (+/- 3Kb TSS)")
+
+```
+```{r}
+knockdown_genes_zic2_anno %>%
+  filter(knockdown_zic2 == "down",
+         str_detect(annotation,"Promoter"), invivo_up | invivo_down ) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic2 KD Down, Peaks at Promoters (+/- 3Kb TSS), in vivo overlaps")
+
+knockdown_genes_zic2_anno %>%
+  filter(knockdown_zic2 == "up",
+          str_detect(annotation,"Promoter"), invivo_up | invivo_down ) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic2 KD Up, Peaks at Promoters (+/- 3Kb TSS), in vivo overlaps")
+
+```
+Notes:
+- The ras gene was interesting because it has multiple peaks over its gene body that change, but not overlaps in vivo peaks, here is a paper that says ras pathway activated in activity dependent manner and requiredd for CGN survival in vitro https://www.sciencedirect.com/science/article/pii/S0021925820523442
+
 
 
