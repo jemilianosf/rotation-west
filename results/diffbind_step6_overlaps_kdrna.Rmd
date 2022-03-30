@@ -116,22 +116,6 @@ genes_d7[genes_d7 %in% knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold
 
 ```
 
-Intersect in vivo peaks
-```{r}
-
-upset(fromList(list("D1" = genes_d1_invivo,
-                    "D7" = genes_d7_invivo,
-                    "KD_Zic1" = knockdown_genes_zic1$gene,
-                    "KD_Zic2" = knockdown_genes_zic2$gene)))
-
-```
-
-```{r}
-genes_d1_invivo[genes_d1_invivo %in% knockdown_genes$gene]
-genes_d7_invivo[genes_d7_invivo %in% knockdown_genes$gene]
-
-```
-
 
 # Plot overlaps from the genes perspectives
 
@@ -521,8 +505,99 @@ knockdown_genes_zic2_anno %>%
   ggtitle("Zic2 KD Up, Peaks at Promoters (+/- 3Kb TSS), in vivo overlaps")
 
 ```
+
+# Distribution of fold changes
+
+```{r}
+knockdown_genes_zic1_anno %>%
+  filter(str_detect(annotation,"Promoter")) %>%
+  ggplot(aes(x = knockdown_zic1, y = log2FoldChange)) +
+  geom_violin() +
+  
+  geom_jitter(data=knockdown_genes_zic1_anno %>%
+                    filter(str_detect(annotation,"Promoter")),
+              aes(x = knockdown_zic1, y = log2FoldChange, color = padj < 0.05),
+              width = 0.2) +
+    scale_color_manual(values=c("TRUE"="#3F3F3F","FALSE"="gray")) +
+  geom_boxplot(outlier.shape = NA, width = 0.2)
+
+
+knockdown_genes_zic2_anno %>%
+  filter(str_detect(annotation,"Promoter")) %>%
+  ggplot(aes(x = knockdown_zic2, y = log2FoldChange)) +
+  geom_violin() +
+  
+  geom_jitter(data=knockdown_genes_zic2_anno %>%
+                    filter(str_detect(annotation,"Promoter")),
+              aes(x = knockdown_zic2, y = log2FoldChange, color = padj < 0.05),
+              width = 0.2) +
+    scale_color_manual(values=c("TRUE"="#3F3F3F","FALSE"="gray")) +
+  geom_boxplot(outlier.shape = NA, width = 0.2)
+
+
+```
+```{r}
+wilcox.test(knockdown_genes_zic1_anno$log2FoldChange[knockdown_genes_zic1_anno$knockdown_zic1 == "up"],
+           knockdown_genes_zic1_anno$log2FoldChange[knockdown_genes_zic1_anno$knockdown_zic1 == "down"] )
+
+
+wilcox.test(knockdown_genes_zic2_anno$log2FoldChange[knockdown_genes_zic2_anno$knockdown_zic2 == "up"],
+           knockdown_genes_zic2_anno$log2FoldChange[knockdown_genes_zic2_anno$knockdown_zic2 == "down"] )
+
+```
+
+
+```{r}
+knockdown_genes_zic1_anno %>%
+  filter(str_detect(annotation,"Promoter"),
+         padj < 0.05) %>%
+  ggplot(aes(x = knockdown_zic1, y = log2FoldChange)) +
+  geom_violin() +
+  geom_jitter(width = 0.2) +
+  geom_boxplot(outlier.shape = NA, width = 0.2)
+
+
+knockdown_genes_zic2_anno %>%
+  filter(str_detect(annotation,"Promoter"),
+         padj < 0.05) %>%
+  ggplot(aes(x = knockdown_zic2, y = log2FoldChange)) +
+  geom_violin() +
+  geom_jitter(width = 0.2, alpha = 0.75) +
+  geom_boxplot(outlier.shape = NA, width = 0.2)
+
+wilcox.test(knockdown_genes_zic1_anno$log2FoldChange[knockdown_genes_zic1_anno$knockdown_zic1 == "up"],
+           knockdown_genes_zic1_anno$log2FoldChange[knockdown_genes_zic1_anno$knockdown_zic1 == "down"] )
+
+```
+
+```{r}
+knockdown_genes_zic1_anno %>%
+  filter(str_detect(annotation,"Promoter")) %>%
+  group_by(SYMBOL,knockdown_zic1) %>%
+  summarise(log2FoldChange = mean(log2FoldChange)) %>%
+  ggplot(aes(x = knockdown_zic1, y = log2FoldChange)) +
+  geom_violin() +
+  geom_jitter(width = 0.2) +
+  geom_boxplot(outlier.shape = NA, width = 0.2)
+
+
+knockdown_genes_zic2_anno %>%
+  filter(str_detect(annotation,"Promoter")) %>%
+  group_by(SYMBOL,knockdown_zic2) %>%
+  summarise(log2FoldChange = mean(log2FoldChange)) %>%
+  ggplot(aes(x = knockdown_zic2, y = log2FoldChange)) +
+  geom_violin() +
+  geom_jitter(width = 0.2) +
+  geom_boxplot(outlier.shape = NA, width = 0.2)
+
+```
+
 Notes:
 - The ras gene was interesting because it has multiple peaks over its gene body that change, but not overlaps in vivo peaks, here is a paper that says ras pathway activated in activity dependent manner and requiredd for CGN survival in vitro https://www.sciencedirect.com/science/article/pii/S0021925820523442
+
+- It does look like there is a tendency for going up in fold change for all differential genes. I think the peaks per promoter region and the violin plots show this.
+- Doing the RNA version might be overkill if we already sort of know the answer? But couldn't hurt I guess.
+- Also, I guess I should be doing the comparisons at DIV7 - DIV3
 
 
 
