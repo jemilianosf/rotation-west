@@ -1,0 +1,126 @@
+---
+title: "diffbind_step8_assign_peaks_enhancers"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Goal
+Use enhancer - promoter pairs from et al from P4 to increase the number of mapped peaks.
+
+# Strategy
+1. create a bed file of the enhancers and promoters separately while having a unique identifier for the pair ( e.g.  chr1 5020841 5020906 loop1 (for the enhancer) and chr1 5069785 5070785 loop_1 for the promoter)
+2. use bedtools intersect to find the intersecting Zic peaks ( in your case you can read this into R and use GRanges to intersect them)
+3. Map the promoter data to the nearest gene. Since this is  promoter data, I expect that the annotated promoters should not be far from its nearest gene.
+4. Combine all the data to look something like this | enhancer | promoter | intersected zic peaks | nearest gene to promoter|
+
+# Read annotations
+```{r}
+peaks_7v1_anno <- readRDS("../data_output/diffbind_cutnrun_zic/peaks_7v1_up_annotation.Rds")
+peaks_1v7_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_down_annotation.Rds")
+peaks_all_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_all_annotation.Rds")
+
+```
+
+# Read enhancer-promoter pairs
+```{r}
+promoter_enhancer_pairs <- readxl::read_xlsx("../data_input/bedpe/GSE164360_Hi-C_Summary.xlsx")
+promoter_enhancer_pairs$loop_id <- paste("loop",seq(1,nrow(promoter_enhancer_pairs)),sep = "-")
+```
+
+```{r}
+library(GenomicRanges)
+promoter_enhancer_pairs <- makeGRangesFromDataFrame(promoter_enhancer_pairs, keep.extra.columns = T,
+                         seqnames.field = "enhancer_chr",
+                         start.field = "enhancer_start",
+                         end.field = "enhancer_end")
+
+
+```
+# Overlap Zic peaks and enhancers
+
+```{r}
+peaks_all_anno@anno <- peaks_all_anno@anno[peaks_all_anno@anno@seqnames %in% promoter_enhancer_pairs@seqnames]
+
+distonear <- distanceToNearest(peaks_all_anno@anno,promoter_enhancer_pairs)
+
+
+
+```
+
+
+# Add overlaps to annotation
+
+```{r}
+peaks_all_anno@anno$enhancer_assigned_gene <- promoter_enhancer_pairs[distonear@to]$GeneID
+
+peaks_all_anno@anno$distToNearest_enhancer <- distonear@elementMetadata$distance
+
+```
+
+# Map promoter to nearest gene
+
+```{r}
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+mm10_tss <- promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene),upstream =1, downstream=0)
+promoter_enhancer_pairs_promoters <- GRanges(seqnames = promoter_enhancer_pairs$promoter_chr,
+        ranges = IRanges(start = promoter_enhancer_pairs$promoter_start,
+                         end = promoter_enhancer_pairs$promoter_end))
+
+distonear_promoter <- distanceToNearest(promoter_enhancer_pairs_promoters,mm10_tss)
+
+peaks_all_anno@anno$enhancer_promoter_assigned_geneid <- mm10_tss[distonear_promoter@to]$gene_id
+
+distonear_promoter@from
+
+
+```
+
+
+```{r}
+peaks_all_anno_enh <- peaks_all_anno@anno[peaks_all_anno@anno$distToNearest_enhancer == 0]
+```
+
+```{r}
+sum(peaks_all_anno_enh$SYMBOL == peaks_all_anno_enh$enhancer_assigned_gene)
+```
+
+```{r}
+peaks_all_anno_enh@elementMetadata
+```
+
+
+```{r}
+library(tidyverse)
+sum(replace_na(peaks_all_anno_enh$padj,1) < 0.05)
+```
+
+```{r}
+library(ChIPseeker)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+TxDb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+peaks_all_anno_enh <- ChIPseeker::annotatePeak( peaks_all_anno_enh,TxDb = TxDb)
+```
+
+```{r}
+plotAnnoBar(peaks_all_anno_enh)
+```
+
+
+```{r}
+peaks_all_anno_enh@anno %>%
+  as_tibble() %>%
+  filter(padj < 0.05) %>%
+  ggplot(aes(log2FoldChange)) +
+  geom_histogram()
+```
+
+```{r}
+peaks_all_anno_enh@anno %>%
+  as_tibble() %>%
+  filter(padj < 0.05, log2FoldChange > 1.5)
+```
+
+
