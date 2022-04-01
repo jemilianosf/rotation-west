@@ -592,6 +592,280 @@ knockdown_genes_zic2_anno %>%
 
 ```
 
+
+# Do comparisons for enhancer - annotated peaks
+
+```{r}
+peaks_enhancer_annotated <- read_tsv(file = "../data_output/diffbind_cutnrun_zic/enhancer_annotation_all_peaks.tsv")
+
+peaks_enhancer_annotated <- peaks_enhancer_annotated %>%
+  filter(!is.na(loop_id))
+```
+
+Get annotations for Zic1 and Zic2 knockdowns
+
+```{r}
+knockdown_genes_zic1_anno_enh <- peaks_enhancer_annotated[peaks_enhancer_annotated$GeneID %in% c(knockdown_genes_zic1_up,knockdown_genes_zic1_down) , ]
+
+knockdown_genes_zic2_anno_enh <- peaks_enhancer_annotated[peaks_enhancer_annotated$GeneID %in% c(knockdown_genes_zic2_up,knockdown_genes_zic2_down) , ]
+
+
+
+```
+
+Overlap with in vivo peaks
+```{r}
+knockdown_genes_zic1_anno_enh$invivo_up <- overlapsAny(makeGRangesFromDataFrame(knockdown_genes_zic1_anno_enh),peaks_7v1_invivo,type = "equal")
+knockdown_genes_zic1_anno_enh$invivo_down <- overlapsAny(makeGRangesFromDataFrame(knockdown_genes_zic1_anno_enh),peaks_1v7_invivo,type = "equal")
+
+knockdown_genes_zic2_anno_enh$invivo_up <- overlapsAny(makeGRangesFromDataFrame(knockdown_genes_zic2_anno_enh),peaks_7v1_invivo,type = "equal")
+knockdown_genes_zic2_anno_enh$invivo_down <- overlapsAny(makeGRangesFromDataFrame(knockdown_genes_zic2_anno_enh),peaks_1v7_invivo,type = "equal")
+
+```
+
+```{r}
+library(tidyverse)
+theme_set(theme_minimal())
+theme_replace(aspect.ratio = 1)
+
+knockdown_genes_zic1_anno_enh <- knockdown_genes_zic1_anno_enh %>%
+  mutate(SYMBOL = GeneID,
+         direction = case_when(
+           log2FoldChange > 0  & padj < 0.05 ~ "up" ,
+           log2FoldChange < 0  & padj < 0.05 ~ "down",
+           TRUE ~ "ns",
+         ),
+         padj = replace_na(padj, 1),
+         knockdown_zic1 = case_when(
+           SYMBOL %in% knockdown_genes_zic1_up ~ "up",
+           SYMBOL %in% knockdown_genes_zic1_down ~"down",
+           TRUE ~ "ns"
+         ))
+
+knockdown_genes_zic2_anno_enh <- knockdown_genes_zic2_anno_enh %>%
+   mutate(SYMBOL = GeneID,
+         direction = case_when(
+           log2FoldChange > 0  & padj < 0.05 ~ "up" ,
+           log2FoldChange < 0  & padj < 0.05 ~ "down",
+           TRUE ~ "ns",
+         ),
+         padj = replace_na(padj, 1),
+         knockdown_zic2 = case_when(
+           SYMBOL %in% knockdown_genes_zic2_up ~ "up",
+           SYMBOL %in% knockdown_genes_zic2_down ~"down",
+           TRUE ~ "ns"
+         ))
+
+```
+
+
+```{r}
+knockdown_genes_zic1_anno_enh %>%
+  filter(knockdown_zic1 == "down") %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic1 KD Up, Peaks at P4 Enhancers")
+
+knockdown_genes_zic1_anno_enh %>%
+  filter(knockdown_zic1 == "up") %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic1 KD Down, Peaks at P4 Enhancers")
+
+```
+
+
+```{r}
+knockdown_genes_zic2_anno_enh %>%
+  filter(knockdown_zic2 == "down") %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic2 KD Up, Peaks at P4 Enhancers")
+
+knockdown_genes_zic2_anno_enh %>%
+  filter(knockdown_zic2 == "up") %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic2 KD Down, Peaks at P4 Enhancers")
+
+```
+
+
+```{r}
+knockdown_genes_zic1_anno_enh %>%
+  filter(knockdown_zic1 == "down", invivo_up | invivo_down) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic1 KD Up, Peaks at P4 Enhancers (overlaps in vivo)")
+
+knockdown_genes_zic1_anno_enh %>%
+  filter(knockdown_zic1 == "up", invivo_up | invivo_down) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic1 KD Down, Peaks at P4 Enhancers (overlaps in vivo)")
+
+```
+
+
+```{r}
+knockdown_genes_zic2_anno_enh %>%
+  filter(knockdown_zic2 == "down", invivo_up | invivo_down) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red"))+
+  ggtitle("Zic2 KD Up, Peaks at P4 Enhancers (overlaps in vivo)")
+
+knockdown_genes_zic2_anno_enh %>%
+  filter(knockdown_zic2 == "up", invivo_up | invivo_down) %>%
+  group_by(SYMBOL, direction) %>%
+  summarise(count = n()) %>%
+  group_by(SYMBOL) %>%
+  mutate(sum_count = sum(count)) %>%
+  ungroup() %>%
+  mutate(SYMBOL = fct_reorder(SYMBOL,sum_count)) %>%
+  ggplot(aes(y = SYMBOL, x = count, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("down" ="blue","ns"="darkgray","up"="red")) +
+  ggtitle("Zic2 KD Down, Peaks at P4 Enhancers (overlaps in vivo)")
+
+```
+
+
+# Distribution of fold changes
+
+```{r}
+knockdown_genes_zic1_anno_enh %>%
+  ggplot(aes(x = knockdown_zic1, y = log2FoldChange)) +
+  geom_violin() +
+  
+  geom_jitter(data=knockdown_genes_zic1_anno_enh ,
+              aes(x = knockdown_zic1, y = log2FoldChange, color = padj < 0.05),
+              width = 0.2) +
+    scale_color_manual(values=c("TRUE"="#3F3F3F","FALSE"="gray")) +
+  geom_boxplot(outlier.shape = NA, width = 0.2)
+
+
+knockdown_genes_zic2_anno_enh %>%
+  ggplot(aes(x = knockdown_zic2, y = log2FoldChange)) +
+  geom_violin() +
+  
+  geom_jitter(data=knockdown_genes_zic2_anno_enh,
+              aes(x = knockdown_zic2, y = log2FoldChange, color = padj < 0.05),
+              width = 0.2) +
+    scale_color_manual(values=c("TRUE"="#3F3F3F","FALSE"="gray")) +
+  geom_boxplot(outlier.shape = NA, width = 0.2)
+
+
+```
+
+
+
+```{r}
+knockdown_genes_zic1_anno_enh %>%
+  filter(
+         padj < 0.05) %>%
+  ggplot(aes(x = knockdown_zic1, y = log2FoldChange)) +
+  geom_boxplot(outlier.shape = NA, width = 0.2) +
+  geom_jitter(width = 0.2, alpha = 0.75) 
+
+
+
+knockdown_genes_zic2_anno_enh %>%
+  filter(padj < 0.05) %>%
+  ggplot(aes(x = knockdown_zic2, y = log2FoldChange)) +
+  geom_boxplot(outlier.shape = NA, width = 0.2) +
+  geom_jitter(width = 0.2, alpha = 0.75) 
+
+```
+
+```{r}
+knockdown_genes_zic1_anno_enh %>%
+  group_by(SYMBOL,knockdown_zic1) %>%
+  summarise(log2FoldChange = mean(log2FoldChange)) %>%
+  ggplot(aes(x = knockdown_zic1, y = log2FoldChange)) +
+    geom_boxplot(outlier.shape = NA, width = 0.2) +
+  geom_jitter(width = 0.2) 
+
+
+knockdown_genes_zic2_anno_enh %>%
+  group_by(SYMBOL,knockdown_zic2) %>%
+  summarise(log2FoldChange = mean(log2FoldChange)) %>%
+  ggplot(aes(x = knockdown_zic2, y = log2FoldChange)) +
+    geom_boxplot(outlier.shape = NA, width = 0.2) +
+  geom_jitter(width = 0.2) 
+
+```
+
+# Overall overlaps
+
+```{r}
+
+```
+
+```{r}
+theme_set(theme_classic())
+
+upset(fromList(list("D1" = genes_d1,
+                    "D7" = genes_d7,
+                    "D1_enh" = peaks_enhancer_annotated$GeneID[peaks_enhancer_annotated$log2FoldChange < 0 & peaks_enhancer_annotated$padj < 0.05],
+                    "D7_enh" = peaks_enhancer_annotated$GeneID[peaks_enhancer_annotated$log2FoldChange > 0 & peaks_enhancer_annotated$padj < 0.05],
+                    "KD_Zic1_decrease" = knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`<0],
+                    "KD_Zic1_increase" = knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(Fold-Change)`>0],
+                    "KD_Zic2_decrease" = knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`<0],
+                    "KD_Zic2_increase" = knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)`>0])),
+      nsets = 8,keep.order = TRUE) 
+
+```
+
+
 Notes:
 - The ras gene was interesting because it has multiple peaks over its gene body that change, but not overlaps in vivo peaks, here is a paper that says ras pathway activated in activity dependent manner and requiredd for CGN survival in vitro https://www.sciencedirect.com/science/article/pii/S0021925820523442
 
