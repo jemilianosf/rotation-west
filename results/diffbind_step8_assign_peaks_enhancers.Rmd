@@ -1,0 +1,186 @@
+---
+title: "diffbind_step8_assign_peaks_enhancers"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+# Goal
+Use enhancer - promoter pairs from et al from P4 to increase the number of mapped peaks.
+
+# Strategy
+1. create a bed file of the enhancers and promoters separately while having a unique identifier for the pair ( e.g.  chr1 5020841 5020906 loop1 (for the enhancer) and chr1 5069785 5070785 loop_1 for the promoter)
+2. use bedtools intersect to find the intersecting Zic peaks ( in your case you can read this into R and use GRanges to intersect them)
+3. Map the promoter data to the nearest gene. Since this is  promoter data, I expect that the annotated promoters should not be far from its nearest gene.
+4. Combine all the data to look something like this | enhancer | promoter | intersected zic peaks | nearest gene to promoter|
+
+# Read annotations
+```{r}
+peaks_7v1_anno <- readRDS("../data_output/diffbind_cutnrun_zic/peaks_7v1_up_annotation.Rds")
+peaks_1v7_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_down_annotation.Rds")
+peaks_all_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_all_annotation.Rds")
+
+```
+
+# Read enhancer-promoter pairs
+```{r}
+promoter_enhancer_pairs <- readxl::read_xlsx("../data_input/bedpe/GSE164360_Hi-C_Summary.xlsx",guess_max = 10000)
+promoter_enhancer_pairs$loop_id <- paste("loop",seq(1,nrow(promoter_enhancer_pairs)),sep = "-")
+```
+
+
+# Create granges for enhancers and promoters separately
+
+create a bed file of the enhancers and promoters separately while having a unique identifier for the pair ( e.g.  chr1 5020841 5020906 loop1 (for the enhancer) and chr1 5069785 5070785 loop_1 for the promoter)
+
+```{r}
+library(GenomicRanges)
+pairs_enhancers <- makeGRangesFromDataFrame(promoter_enhancer_pairs, keep.extra.columns = T,
+                         seqnames.field = "enhancer_chr",
+                         start.field = "enhancer_start",
+                         end.field = "enhancer_end")
+
+pairs_promoters <- makeGRangesFromDataFrame(promoter_enhancer_pairs, keep.extra.columns = T,
+                         seqnames.field = "promoter_chr",
+                         start.field = "promoter_start",
+                         end.field = "promoter_end",
+                         strand.field = "gene_strand")
+
+
+```
+
+# Intersect enhancers to peaks
+Note: For multiple peaks there is more than one enhancer that overlaps a peak  
+```{r}
+# Find overlaps
+peaks_enhancers_olaps <- findOverlaps(peaks_all_anno@anno, pairs_enhancers)
+# For those peaks that overlap more than one enhancer, select the enhancer closest to the peak mid-point
+peak2enhancer_id_list <- split(peaks_enhancers_olaps@to, peaks_enhancers_olaps@from)
+# Get peaks midpoints 
+peaks_resized <- resize(peaks_all_anno@anno, width = 1, fix = "center")
+
+for (peak in names(peak2enhancer_id_list)){
+  # If a peak overlaps more than one enhancer
+  if(length(peak2enhancer_id_list[[peak]])>1){
+    # Get the indices of overlapping enhancers
+    enhancers <- peak2enhancer_id_list[[peak]]
+    # Get the distance between peak and nearest enhancers 
+    distonear <- distanceToNearest(peaks_all_anno@anno[as.numeric(peak)],
+                                  pairs_enhancers[enhancers])
+    # Change enhancer to the nearest one, in extreme case where there are still ties, select the first one just to guarantee a single assignment
+    peak2enhancer_id_list[[peak]] <- enhancers[distonear@to[1]]
+    
+  }
+}
+# Annotate peaks with their loop id
+peaks_all_anno@anno$loop_id <- NA 
+
+peaks_all_anno@anno$loop_id[as.numeric(names(peak2enhancer_id_list))] <- pairs_enhancers$loop_id[unlist(peak2enhancer_id_list)]
+
+```
+
+
+# Intersect promoters to genes
+
+Note: for the first pass, even though we are doing these promoter / gene overlaps, in the final table we'll use the genes they assigned 
+```{r}
+pairs_promoters_assigned <- pairs_promoters[pairs_promoters$loop_id %in% pairs_enhancers$loop_id[unlist(peak2enhancer_id_list)]]
+
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+mm10_tss <- promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene, columns = "gene_id"),upstream =500, downstream=501)
+
+
+distonear_promoters <- distanceToNearest(pairs_promoters_assigned,mm10_tss)
+
+# There are no duplicates but to ensure 1-1 mappings, arbitrarily select first "nearest" one
+distonear_promoters <- distonear_promoters[!duplicated(distonear_promoters@from)]
+
+pairs_promoters_assigned$gene_new_assignment <- mm10_tss[distonear_promoters@to]$gene_id
+pairs_promoters_assigned$gene_new_assignment_distance <- distonear_promoters@elementMetadata$distance 
+
+library(clusterProfiler)
+library(org.Mm.eg.db)
+
+
+gene_id_mappings <- bitr(pairs_promoters_assigned$gene_new_assignment,fromType = "ENTREZID",toType = "SYMBOL",OrgDb = org.Mm.eg.db)
+
+rownames(gene_id_mappings) <- gene_id_mappings$ENTREZID
+
+pairs_promoters_assigned$gene_new_assignment_symbol <- gene_id_mappings[pairs_promoters_assigned$gene_new_assignment,"SYMBOL"]
+
+loop_gene_assignments <- as.data.frame(elementMetadata(pairs_promoters_assigned)[,c("loop_id","gene_new_assignment","gene_new_assignment_symbol","gene_new_assignment_distance")])
+
+```
+
+# Combine data
+
+4. Combine all the data to look something like this | enhancer | promoter | intersected zic peaks | nearest gene to promoter|
+
+```{r}
+peaks_enhancer_annotated <- as.data.frame(peaks_all_anno@anno)
+
+
+peaks_enhancer_annotated <- dplyr::left_join(peaks_enhancer_annotated, promoter_enhancer_pairs, by = "loop_id")
+
+peaks_enhancer_annotated <- dplyr::left_join(peaks_enhancer_annotated, loop_gene_assignments, by = "loop_id")
+
+```
+
+All peaks annotated
+
+```{r}
+write_tsv(peaks_enhancer_annotated,file = "../data_output/diffbind_cutnrun_zic/enhancer_annotation_all_peaks.tsv")
+```
+
+
+All annotated loops 
+```{r}
+loops_annotated_all <- peaks_enhancer_annotated %>%
+  drop_na(loop_id) 
+write_tsv(loops_annotated_all,file = "../data_output/diffbind_cutnrun_zic/enhancer_annotation_all_loops.tsv")
+
+```
+
+Annotated loops, relevant columns (enhancers, promoters, peaks, gene)
+```{r}
+loops_annotated <- loops_annotated_all%>%
+  select(
+         enhancer_chr, enhancer_start, enhancer_end,
+         promoter_chr, promoter_start, promoter_end,
+         gene_strand,
+         seqnames, start, end, strand, baseMean, log2FoldChange, padj,
+         GeneID)
+
+
+write_tsv(loops_annotated,file = "../data_output/diffbind_cutnrun_zic/enhancer_annotation_loops.tsv")
+
+```
+
+D1 table
+```{r}
+loops_annotated_d1 <- loops_annotated %>%
+  filter(padj < 0.05 & log2FoldChange < 0)
+
+write_tsv(loops_annotated_d1,file = "../data_output/diffbind_cutnrun_zic/enhancer_annotation_loops_d1.tsv")
+
+```
+
+
+D7 table
+```{r}
+loops_annotated_d7 <- loops_annotated %>%
+  filter(padj < 0.05 & log2FoldChange > 0)
+
+write_tsv(loops_annotated_d7,file = "../data_output/diffbind_cutnrun_zic/enhancer_annotation_loops_d7.tsv")
+
+```
+
+
+
+
+
+
