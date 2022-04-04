@@ -541,6 +541,28 @@ knockdown_genes_zic2_anno %>%
 
 
 ```
+
+Compare using ecdf
+```{r}
+knockdown_genes_zic1_anno %>%
+  filter(str_detect(annotation,"Promoter")) %>%
+  ggplot(aes( x = log2FoldChange, color = knockdown_zic1)) +
+  stat_ecdf() +
+    xlab("CUT&RUN Zic DIV7 - DIV1 log2FC") +
+  scale_color_manual(values = c("down" = "blue","up" ="red"))
+
+
+knockdown_genes_zic2_anno %>%
+  filter(str_detect(annotation,"Promoter")) %>%
+  ggplot(aes( x = log2FoldChange, color = knockdown_zic2)) +
+  stat_ecdf() +
+    xlab("CUT&RUN Zic DIV7 - DIV1 log2FC") +
+  scale_color_manual(values = c("down" = "blue","up" ="red"))
+
+```
+
+
+
 ```{r}
 wilcox.test(knockdown_genes_zic1_anno$log2FoldChange[knockdown_genes_zic1_anno$knockdown_zic1 == "up"],
            knockdown_genes_zic1_anno$log2FoldChange[knockdown_genes_zic1_anno$knockdown_zic1 == "down"] )
@@ -559,7 +581,9 @@ knockdown_genes_zic1_anno %>%
   ggplot(aes(x = knockdown_zic1, y = log2FoldChange)) +
   geom_violin() +
   geom_jitter(width = 0.2) +
-  geom_boxplot(outlier.shape = NA, width = 0.2)
+  geom_boxplot(outlier.shape = NA, width = 0.2)+
+    ylab("CUT&RUN Zic DIV7 - DIV1 log2FC") +
+    xlab("RNAseq Zic1 Knockdown - DIV7 Ctrl")
 
 
 knockdown_genes_zic2_anno %>%
@@ -568,10 +592,10 @@ knockdown_genes_zic2_anno %>%
   ggplot(aes(x = knockdown_zic2, y = log2FoldChange)) +
   geom_violin() +
   geom_jitter(width = 0.2, alpha = 0.75) +
-  geom_boxplot(outlier.shape = NA, width = 0.2)
+  geom_boxplot(outlier.shape = NA, width = 0.2)+
+    ylab("CUT&RUN Zic DIV7 - DIV1 log2FC") +
+    xlab("RNAseq Zic2 Knockdown - DIV7 Ctrl")
 
-wilcox.test(knockdown_genes_zic1_anno$log2FoldChange[knockdown_genes_zic1_anno$knockdown_zic1 == "up"],
-           knockdown_genes_zic1_anno$log2FoldChange[knockdown_genes_zic1_anno$knockdown_zic1 == "down"] )
 
 ```
 
@@ -583,7 +607,9 @@ knockdown_genes_zic1_anno %>%
   ggplot(aes(x = knockdown_zic1, y = log2FoldChange)) +
   geom_violin() +
   geom_jitter(width = 0.2) +
-  geom_boxplot(outlier.shape = NA, width = 0.2)
+  geom_boxplot(outlier.shape = NA, width = 0.2)+
+    ylab("CUT&RUN Zic DIV7 - DIV1 log2FC") +
+    xlab("RNAseq Zic1 Knockdown - DIV7 Ctrl")
 
 
 knockdown_genes_zic2_anno %>%
@@ -593,7 +619,9 @@ knockdown_genes_zic2_anno %>%
   ggplot(aes(x = knockdown_zic2, y = log2FoldChange)) +
   geom_violin() +
   geom_jitter(width = 0.2) +
-  geom_boxplot(outlier.shape = NA, width = 0.2)
+  geom_boxplot(outlier.shape = NA, width = 0.2)+
+    ylab("CUT&RUN Zic DIV7 - DIV1 log2FC") +
+    xlab("RNAseq Zic2 Knockdown - DIV7 Ctrl")
 
 ```
 
