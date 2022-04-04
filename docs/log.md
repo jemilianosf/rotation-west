@@ -102,5 +102,17 @@ To do:
 - Do suggestions on overlaps kdrna analysis:
   - Focus on genes that change, where is the nearest diff peak? where is the nearest peak?
 - Do enhancer-promoter peak assignments with P4 hic data.
+- Check how to use a more stringent SEACR peak list.
 
+#2022-03-30
+- Violin plots for knockdown genes with diff peaks
+- Continue with enhancer-promoter peak assignments
 
+#2022-03-31
+- Continue with enhancer-promoter peak assignments
+
+#2022-04-01
+- Get table and annotated peaks
+- General exploration of peaks / enhancers overlaps
+- Re-do previous overlaps but now with enhancers
+- Doing 
