@@ -14,12 +14,14 @@ res_3v1 <- readRDS("../data_output/diffbind_cutnrun_zic/res_3v1_ashr.Rds")
 res_5v3 <- readRDS("../data_output/diffbind_cutnrun_zic/res_5v3_ashr.Rds")
 res_7v5 <- readRDS("../data_output/diffbind_cutnrun_zic/res_7v5_ashr.Rds")
 res_7v1 <- readRDS("../data_output/diffbind_cutnrun_zic/res_7v1_ashr.Rds")
+res_7v3 <- readRDS("../data_output/diffbind_cutnrun_zic/res_7v3_ashr.Rds")
 res_all <- readRDS("../data_output/diffbind_cutnrun_zic/res_all_ashr.Rds")
 ```
 
 # Plots
 ```{r}
 library(tidyverse)
+library(DESeq2)
 ```
 
 ## P value histogram
@@ -45,6 +47,11 @@ res_7v1 %>%
   ggplot(aes(pvalue)) +
   geom_histogram()
 
+res_7v3 %>%
+  as_tibble() %>%
+  ggplot(aes(pvalue)) +
+  geom_histogram()
+
 res_all %>%
   as_tibble() %>%
   ggplot(aes(pvalue)) +
@@ -59,6 +66,7 @@ plotMA(res_3v1, main = "DIV3-DIV1", alpha = 0.05, ylim = c(-3,3))
 plotMA(res_5v3, main = "DIV5-DIV3", alpha = 0.05, ylim = c(-1,1))
 plotMA(res_7v5, main = "DIV7-DIV5", alpha = 0.05, ylim = c(-1,1))
 plotMA(res_7v1, main = "DIV7-DIV1", alpha = 0.05, ylim = c(-3,3))
+plotMA(res_7v3, main = "DIV7-DIV3", alpha = 0.05, ylim = c(-3,3))
 
 ```
 
@@ -81,6 +89,7 @@ plot_volcano(res_3v1) + ggtitle("DIV3-DIV1")
 plot_volcano(res_5v3) + ggtitle("DIV5-DIV3")
 plot_volcano(res_7v5) + ggtitle("DIV7-DIV5")
 plot_volcano(res_7v1) + ggtitle("DIV7-DIV1")
+plot_volcano(res_7v3) + ggtitle("DIV7-DIV3")
 
 ```
 
@@ -123,13 +132,14 @@ plot_diffbind_heatmap(vsd, res_3v1) + ggtitle("DIV3-DIV1")
 plot_diffbind_heatmap(vsd, res_5v3)+ ggtitle("DIV5-DIV3")
 plot_diffbind_heatmap(vsd, res_7v5)+ ggtitle("DIV7-DIV5")
 plot_diffbind_heatmap(vsd, res_7v1) + ggtitle("DIV7-DIV1")
+plot_diffbind_heatmap(vsd, res_7v3) + ggtitle("DIV7-DIV3")
 plot_diffbind_heatmap(vsd, res_all)+ ggtitle("Any timepoint")
 ```
 
 DIV7-DIV1 K means
 
 ```{r}
-scaled_vst <- t(scale(t(assay(vsd[tidyr::replace_na(res_7v1$padj,1) < 0.05,]))))
+scaled_vst <- t(scale(t(assay(vsd[tidyr::replace_na(res_7v3$padj,1) < 0.05,]))))
 colnames(scaled_vst) <- paste((str_split(colnames(scaled_vst),"-") %>% map_chr(2)),
                               (str_split(colnames(scaled_vst),"-") %>% map_chr(1)),sep = "-")
 
@@ -143,7 +153,7 @@ Heatmap(scaled_vst ,
 
 ```
 
-DIV7-DIV1 K means
+DIV7-DIV3 K means
 
 ```{r}
 scaled_vst <- t(scale(t(assay(vsd[tidyr::replace_na(res_7v1$padj,1) < 0.05 & abs(tidyr::replace_na(res_7v1$log2FoldChange,1)) > 1.5,]))))
@@ -159,6 +169,34 @@ Heatmap(scaled_vst ,
         col = viridis::inferno(n = 2,begin = 0.2, end = 0.8))
 
 ```
+
+# Overlap of peaks DIV7-DIV1 and DIV7-DIV3
+
+```{r}
+
+
+res_7v3_up <- tidyr::replace_na(res_7v3$padj,1) < 0.05 & tidyr::replace_na(res_7v3$log2FoldChange,0) > 0 
+res_7v3_down <- tidyr::replace_na(res_7v3$padj,1) < 0.05 & tidyr::replace_na(res_7v3$log2FoldChange,0) < 0 
+
+res_7v1_up <- tidyr::replace_na(res_7v1$padj,1) < 0.05 & tidyr::replace_na(res_7v1$log2FoldChange,0) > 0 
+res_7v1_down <- tidyr::replace_na(res_7v1$padj,1) < 0.05 & tidyr::replace_na(res_7v1$log2FoldChange,0) < 0 
+
+
+total_peaks <- length(res_7v3_up)
+
+total_peaks <- 1:total_peaks
+
+
+
+UpSetR::upset(data = UpSetR::fromList(list("res_7v3_up" = total_peaks[res_7v3_up],
+           "res_7v3_down" = total_peaks[res_7v3_down],
+           "res_7v1_up" = total_peaks[res_7v1_up],
+           "res_7v1_down" = total_peaks[res_7v1_down])),nsets = 4)
+
+
+
+```
+
 
 # Notes: 
 
