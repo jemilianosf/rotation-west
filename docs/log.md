@@ -115,4 +115,20 @@ To do:
 - Get table and annotated peaks
 - General exploration of peaks / enhancers overlaps
 - Re-do previous overlaps but now with enhancers
-- Doing 
+
+#2022-04-04
+- Do the 3 vs 7 day comparison, add that to existing plots/analyses
+  - I did that comparison, it looks similar to 7 vs 1 results, although not entirely
+  - I realize the other comparison was not 7vs3 but KD vs 7, so I guess the plots I already have with 7 vs 1 are fine
+- Do example plots from DESeq2 counts
+
+#2022-04-05
+- Do the peak - gene assignments with P22 loops:
+  - Do assignments
+  - General exploration - just add the new loops to the assignment
+  - Re - do previous overlaps but now with P22 enhancers
+  
+- Check methods of both previous papers
+
+
+
