@@ -197,6 +197,19 @@ UpSetR::upset(data = UpSetR::fromList(list("res_7v3_up" = total_peaks[res_7v3_up
 
 ```
 
+# Add example diff plots 
+```{r}
+rownames(deseq_obj_contrasts) <- paste("peak",1:length(deseq_obj_contrasts),sep = "_")
+
+top_peaks_7v1_up <- rownames(deseq_obj_contrasts[res_7v1$pvalue < 0.05 & res_7v1$log2FoldChange > 2])
+
+top_peaks_7v1_down <- rownames(deseq_obj_contrasts[res_7v1$pvalue < 0.05 & res_7v1$log2FoldChange < -2])
+
+for (peak in top_peaks_7v1_down){
+  plotCounts(deseq_obj_contrasts, gene=peak, intgroup="time")
+}
+
+```
 
 # Notes: 
 
