@@ -18,6 +18,14 @@ peaks_all_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_
 ```
 
 ```{r}
+peaks_7v3_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v3_up_annotation.Rds")
+peaks_3v7_anno <- readRDS( file = "../data_output/diffbind_cutnrun_zic/peaks_7v3_down_annotation.Rds")
+peaks_3v7all_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v3_all_annotation.Rds")
+
+```
+
+
+```{r}
 peaks_anno_list <- list("D7" = peaks_7v1_anno,
                  "D1" = peaks_1v7_anno,
                  "all" = peaks_all_anno)
@@ -50,6 +58,7 @@ knockdown_genes_zic1_up <- knockdown_genes_zic1$gene[knockdown_genes_zic1$`log2(
 knockdown_genes_zic2_down <- knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)` < 0]
 knockdown_genes_zic2_up <- knockdown_genes_zic2$gene[knockdown_genes_zic2$`log2(Fold-Change)` > 0]
 ```
+
 
 
 ```{r}
