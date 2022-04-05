@@ -1,0 +1,147 @@
+---
+title: "diffbind_step8_assign_peaks_enhancers"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+# Goal
+Use loop info from et al from P22 to increase the number of mapped peaks.
+
+# Strategy
+1. Get all loops where one of the bins from the pair overlap a promoter region
+2. Define the overlapping bin as the "promoter bin" and the other one as the "distal bin"
+3. Overlap each no-promoter Zic peak to "distal bins"
+4. Map the "Zic bound distal bin" to the gene data from its "promoter bin" pair.
+5. Combine all the data to look something like this | distal | promoter | intersected zic peaks | gene info |
+
+# Read data 
+
+Read annotations
+```{r}
+peaks_all_anno <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_all_annotation.Rds")
+
+```
+
+Read bin pairs
+```{r}
+bin_pairs <- read_tsv("../data_input/bedpe/merged_loops.bedpe",comment = "# ", guess_max = 10000)
+bin_pairs$loop_id <- paste("loop",seq(1,nrow(bin_pairs)),sep = "-")
+bin_pairs$`#chr1` <- paste0("chr",bin_pairs$`#chr1`)
+bin_pairs$chr2 <- paste0("chr",bin_pairs$chr2)
+
+bin_pairs_left <- GRanges(bin_pairs$`#chr1`,
+        IRanges(bin_pairs$x1,
+                bin_pairs$x2),
+        loop_id=bin_pairs$loop_id)
+
+bin_pairs_right <- GRanges(bin_pairs$chr2,
+        IRanges(bin_pairs$y1,
+                bin_pairs$y2),
+        loop_id=bin_pairs$loop_id)
+
+```
+
+Read promoters
+```{r}
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+mm10_tss <- promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene, columns = "gene_id"),upstream =1, downstream=0)
+```
+
+# 1. Get all loops where one of the bins from the pair overlap a promoter region
+
+Note: I am selecting only those bins that overlap a single tss
+```{r}
+bin_pairs_left_olaps <- findOverlaps(mm10_tss, bin_pairs_left, type = "within")
+bin_pairs_right_olaps <- findOverlaps(mm10_tss, bin_pairs_right, type = "within")
+
+# Keep bins overlap a single TSS 
+bin_pairs_left_olaps <- bin_pairs_left_olaps[! (duplicated(bin_pairs_left_olaps@to) | duplicated(bin_pairs_left_olaps@to, fromLast = TRUE))]
+
+# Keep bins overlap a single TSS 
+bin_pairs_right_olaps <- bin_pairs_right_olaps[! (duplicated(bin_pairs_right_olaps@to) | duplicated(bin_pairs_right_olaps@to, fromLast = TRUE))]
+
+
+```
+
+# 2. Define the overlapping bin as the "promoter bin" and the other one as the "distal bin"
+
+```{r}
+
+
+bin_pairs_left_tss <- bin_pairs_left[bin_pairs_left_olaps@to]
+bin_pairs_left_tss$gene_id <- mm10_tss[bin_pairs_left_olaps@from]$gene_id
+
+bin_pairs_right_tss <- bin_pairs_right[bin_pairs_right_olaps@to]
+bin_pairs_right_tss$gene_id <- mm10_tss[bin_pairs_right_olaps@from]$gene_id
+
+# Remove loops where there is a promoter in both sides of loop 
+right_both <- bin_pairs_right_tss$loop_id %in% bin_pairs_left_tss$loop_id
+left_both <- bin_pairs_left_tss$loop_id %in% bin_pairs_right_tss$loop_id
+
+bin_pairs_right_tss <- bin_pairs_right_tss[!right_both]
+bin_pairs_left_tss <- bin_pairs_left_tss[!left_both]
+
+promoters_distal_df <- rbind(left_join(as.data.frame(bin_pairs_right_tss), as.data.frame(bin_pairs_left), by = "loop_id"),
+left_join(as.data.frame(bin_pairs_left_tss), as.data.frame(bin_pairs_right), by = "loop_id"))
+
+colnames(promoters_distal_df) <- str_replace(colnames(promoters_distal_df),".x","_promoter_bin")
+
+colnames(promoters_distal_df) <- str_replace(colnames(promoters_distal_df),".y","_distal_bin")
+
+
+distal_bins <- makeGRangesFromDataFrame(promoters_distal_df,keep.extra.columns = T,
+                         seqnames.field = "seqnames_distal_bin",
+                         start.field = "start_distal_bin",
+                         end.field = "end_distal_bin")
+```
+
+# 3. Overlap each no-promoter Zic peak to "distal bins"
+4. Map the "Zic bound distal bin" to the gene data from its "promoter bin" pair.
+
+```{r}
+peaks_all_anno@anno$peak_id <- seq(1,length(peaks_all_anno@anno))
+
+zic_peaks_non_promoter <- peaks_all_anno@anno[!peaks_all_anno@detailGenomicAnnotation$Promoter]
+```
+
+```{r}
+# Get peaks midpoints 
+zic_peaks_non_promoter_midpoints <- resize(zic_peaks_non_promoter, width = 1, fix = "center")
+
+
+peaks_distal_olaps <- findOverlaps(zic_peaks_non_promoter_midpoints, distal_bins, type = "within")
+
+
+# Annotate peaks with their loop id
+peaks_all_anno@anno$loop_id <- NA 
+
+peaks_all_anno@anno$loop_id[peaks_all_anno@anno$peak_id[peaks_distal_olaps@from]] <- distal_bins$loop_id[peaks_distal_olaps@to]
+
+```
+
+
+5. Combine all the data to look something like this | distal | promoter | intersected zic peaks | gene info |
+
+```{r}
+peaks_distal_annotated <- as.data.frame(peaks_all_anno@anno)
+
+
+peaks_distal_annotated <- dplyr::left_join(peaks_distal_annotated, promoters_distal_df, by = "loop_id")
+
+```
+
+
+Write to table all peaks annotated
+
+```{r}
+write_tsv(peaks_distal_annotated,file = "../data_output/diffbind_cutnrun_zic/distal_p22_annotation_all_peaks.tsv")
+```
+
+
+
+
