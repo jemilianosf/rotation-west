@@ -1,0 +1,108 @@
+---
+title: "diffbind_step8c_overlaps_exploration"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Goal
+
+Since the peak - enhancer/distal region assignments were done differently for P4 and P22, do this quick overlap exploration to compare P4 vs P22.
+
+Do Zic peaks overlap any loop anchors? 
+Comparing D7 peaks vs D1 peaks overlaps P4 vs P22 anchors
+
+
+# Read P4
+
+```{r}
+promoter_enhancer_pairs <- readxl::read_xlsx("../data_input/bedpe/GSE164360_Hi-C_Summary.xlsx",guess_max = 10000)
+
+
+promoter_enhancer_pairs$`#chrA` <- paste0("chr",promoter_enhancer_pairs$`#chrA`)
+promoter_enhancer_pairs$chrB <- paste0("chr",promoter_enhancer_pairs$chrB)
+
+bin_pairs_left <- GRanges(promoter_enhancer_pairs$`#chrA`,
+        IRanges(promoter_enhancer_pairs$startA,
+                promoter_enhancer_pairs$endB))
+
+bin_pairs_right <- GRanges(promoter_enhancer_pairs$chrB,
+        IRanges(promoter_enhancer_pairs$startB,
+                promoter_enhancer_pairs$endB))
+
+
+p4_anchors <- unique(c(bin_pairs_left, bin_pairs_right))
+
+
+```
+
+# Read P22
+```{r}
+bin_pairs <- read_tsv("../data_input/bedpe/merged_loops.bedpe",comment = "# ", guess_max = 10000)
+
+bin_pairs$`#chr1` <- paste0("chr",bin_pairs$`#chr1`)
+bin_pairs$chr2 <- paste0("chr",bin_pairs$chr2)
+
+bin_pairs_left <- GRanges(bin_pairs$`#chr1`,
+        IRanges(bin_pairs$x1,
+                bin_pairs$x2))
+
+bin_pairs_right <- GRanges(bin_pairs$chr2,
+        IRanges(bin_pairs$y1,
+                bin_pairs$y2))
+
+
+p22_anchors <- unique(c(bin_pairs_left, bin_pairs_right))
+```
+
+# Read Zic
+```{r}
+peaks_d7 <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_up_annotation.Rds")
+peaks_d1 <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_down_annotation.Rds")
+
+```
+
+
+# Get overlaps
+
+```{r}
+
+overlaps_df <- data.frame("intersect" =c(sum(overlapsAny(peaks_d7@anno,p22_anchors)),
+sum(overlapsAny(peaks_d1@anno,p22_anchors)),
+sum(overlapsAny(peaks_d7@anno,p4_anchors)),
+sum(overlapsAny(peaks_d1@anno,p4_anchors))))
+
+overlaps_df$a <- c("peaks_d7", "peaks_d1","peaks_d7","peaks_d1")
+overlaps_df$b <- c("p22","p22","p4","p4")
+
+overlaps_df$totals_a <- c(length(peaks_d7@anno),
+                          length(peaks_d1@anno),
+                          length(peaks_d7@anno),
+                          length(peaks_d1@anno))
+overlaps_df$totals_b <- c(length(p22_anchors),
+                          length(p22_anchors),
+                          length(p4_anchors), 
+                          length(p4_anchors))
+overlaps_df$percentage_a <- overlaps_df$intersect * 100 / overlaps_df$totals_a
+overlaps_df$percentage_b <- overlaps_df$intersect * 100 / overlaps_df$totals_b
+
+```
+
+```{r}
+overlaps_df %>%
+  mutate(b = fct_relevel(b,"p4","p22")) %>%
+  ggplot(aes(a,percentage_a, fill = a)) +
+  geom_col() +
+  facet_grid(~b,scales = "free") +
+  scale_fill_manual(values = c("peaks_d1" = "blue",
+                               "peaks_d7" = "red")) +
+  theme_light() +
+  theme(aspect.ratio = 2) +
+  geom_text(aes(label = round(percentage_a)),nudge_y = 1)
+
+```
+
+
+There is more overlap between d7 / p22 than d1 / p22 but only slightly
