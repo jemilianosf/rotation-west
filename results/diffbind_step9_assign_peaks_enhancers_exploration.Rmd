@@ -11,12 +11,17 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 ```
 
-
+# Read P4 data
 ```{r}
 peaks_enhancer_annotated <- read_tsv(file = "../data_output/diffbind_cutnrun_zic/enhancer_annotation_all_peaks.tsv")
 
 ```
 
+# Read P22 data
+```{r}
+peaks_p22_annotated <- read_tsv(file = "../data_output/diffbind_cutnrun_zic/distal_p22_annotation_all_peaks.tsv")
+
+```
 
 How many peaks were associated to genes by enhancers
 ```{r}
@@ -43,12 +48,55 @@ peaks_enhancer_annotated %>%
   theme_minimal() +
   theme(aspect.ratio = 1)
 ```
+```{r}
+peaks_p22_annotated %>%
+  filter(!is.na(padj)) %>%
+  mutate(annotation = ifelse(str_detect(annotation,"Exon"),"Exon",annotation),
+         annotation = ifelse(str_detect(annotation,"Intron"),"Intron",annotation),
+         annotation = ifelse(!is.na(loop_id),"Distal P22",annotation),
+         annotation = ifelse(str_detect(annotation,"Promoter"),"Promoter",annotation),
+         is_diff = case_when(
+           padj < 0.05 & log2FoldChange > 0 ~ "DIV7",
+           padj < 0.05 & log2FoldChange < 0 ~ "DIV1",
+           TRUE ~ "ns",
+         )) %>%
+  group_by(annotation, is_diff) %>%
+  summarise(npeaks = n()) %>%
+  group_by(is_diff) %>%
+  mutate(percentage = npeaks * 100 / sum(npeaks)) %>%
+  ggplot(aes(x = is_diff, y =percentage, fill = annotation)) +
+  geom_col() +
+  scale_fill_brewer(type = "qual",palette = 3) +
+  theme_minimal() +
+  theme(aspect.ratio = 1)
+```
 
 What was the previous annotation for P4 enhancers
 ```{r}
 
 
 peaks_enhancer_annotated %>%
+  filter(!is.na(loop_id)) %>%
+  mutate(annotation = ifelse(str_detect(annotation,"Exon"),"Exon",annotation),
+         annotation = ifelse(str_detect(annotation,"Intron"),"Intron",annotation),
+         annotation = ifelse(str_detect(annotation,"Promoter"),"Promoter",annotation),
+         is_diff = case_when(
+           padj < 0.05 & log2FoldChange > 0 ~ "DIV7",
+           padj < 0.05 & log2FoldChange < 0 ~ "DIV1",
+           TRUE ~ "ns",
+         )) %>%
+  group_by(annotation, is_diff) %>%
+  summarise(npeaks = n()) %>%
+  group_by(is_diff) %>%
+  mutate(percentage = npeaks * 100 / sum(npeaks)) %>%
+  ggplot(aes(x = is_diff, y =percentage, fill = annotation)) +
+  geom_col() +
+  scale_fill_brewer(type = "qual",palette = 3) +
+  theme_minimal() +
+  theme(aspect.ratio = 1)
+```
+```{r}
+peaks_p22_annotated %>%
   filter(!is.na(loop_id)) %>%
   mutate(annotation = ifelse(str_detect(annotation,"Exon"),"Exon",annotation),
          annotation = ifelse(str_detect(annotation,"Intron"),"Intron",annotation),
@@ -94,6 +142,25 @@ peaks_enhancer_annotated %>%
   
 ```
 
+```{r}
+peaks_p22_annotated %>%
+  filter(!is.na(loop_id)) %>%
+  mutate(
+         is_diff = case_when(
+           padj < 0.05 & log2FoldChange > 0 ~ "DIV7",
+           padj < 0.05 & log2FoldChange < 0 ~ "DIV1",
+           TRUE ~ "ns",
+         ),
+         is_diff = fct_relevel(is_diff, "DIV1","ns","DIV7")) %>%
+  group_by(is_diff) %>%
+  summarise(npeaks = n()) %>%
+  ggplot(aes(x = is_diff, y =npeaks, fill = is_diff, label = npeaks)) +
+  geom_col() +
+  scale_fill_manual(values = c("ns" = "lightgray","DIV7" = "red","DIV1"="blue"))+
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  geom_text(nudge_y = 100)
+```
 
 
 LogFC distributions
@@ -122,8 +189,36 @@ peaks_enhancer_annotated %>%
   
 ```
 
+```{r}
+peaks_p22_annotated %>%
+  filter(!is.na(loop_id) | str_detect(annotation, "Promoter")) %>%
+  mutate(
+         is_diff = case_when(
+           padj < 0.05 & log2FoldChange > 0 ~ "DIV7",
+           padj < 0.05 & log2FoldChange < 0 ~ "DIV1",
+           TRUE ~ "ns",
+         ),
+         is_diff = fct_relevel(is_diff, "DIV1","ns","DIV7"),
+         annotation = ifelse(!is.na(loop_id) ,"Distal P22", "Promoter")) %>%
+  filter(is_diff != "ns") %>%
+  ggplot(aes(x = annotation, y =log2FoldChange, color = is_diff)) +
+  geom_violin() +
+  geom_jitter( width = 0.2, alpha = 0.5) +
+  geom_boxplot(width = 0.2, color = "black",outlier.shape = NA) +
+  scale_color_manual(values = c("ns" = "lightgray","DIV7" = "red","DIV1"="blue"))+
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  facet_grid(rows = ~ is_diff)
+```
 
 # Gene ontology
+
+```{r}
+peaks_enhancer_annotated$p22_loop_id <- peaks_p22_annotated$loop_id
+peaks_enhancer_annotated$p22_gene_id <- peaks_p22_annotated$gene_id
+peaks_enhancer_annotated$p22_gene_id
+```
+
 
 ```{r}
 gene_ids <- peaks_enhancer_annotated %>%
@@ -145,13 +240,34 @@ gene_ids <- split(gene_ids$gene_id, gene_ids$group)
 ```
 
 ```{r}
+gene_ids_p22 <- peaks_p22_annotated %>%
+  filter(!is.na(loop_id) | str_detect(annotation, "Promoter")) %>%
+  mutate(
+         is_diff = case_when(
+           padj < 0.05 & log2FoldChange > 0 ~ "DIV7",
+           padj < 0.05 & log2FoldChange < 0 ~ "DIV1",
+           TRUE ~ "ns",
+         ),
+         is_diff = fct_relevel(is_diff, "DIV1","ns","DIV7"),
+         annotation = ifelse(!is.na(loop_id) ,"Distal P22", "Promoter"),
+         gene_id = ifelse(annotation == "Promoter",SYMBOL,gene_id)) %>%
+  filter(is_diff != "ns") %>%
+  mutate(group = paste(is_diff, annotation)) %>%
+  dplyr::select(group, gene_id)
+
+gene_ids_p22 <- split(gene_ids_p22$gene_id, gene_ids_p22$group)
+
+```
+
+
+```{r}
 library(clusterProfiler)
 library(org.Mm.eg.db)
 gene_ids_list <- lapply(gene_ids, function(x) {
   bitr(x, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = org.Mm.eg.db)$ENTREZID
 })
 
-
+gene_ids_list <- c(gene_ids_list, gene_ids_p22[c(1,3)])
 
 comp_go_bp <- compareCluster(geneCluster   = gene_ids_list,
                          fun           = "enrichGO",
