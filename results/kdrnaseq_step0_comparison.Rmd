@@ -91,5 +91,17 @@ fisher.test(knockdown_genes_chd7_zic2$`chd7_adj. P-Value` < 0.05,
 
 table(knockdown_genes_chd7_zic2$`chd7_adj. P-Value` < 0.05,
 !is.na(knockdown_genes_chd7_zic2$zic2_q_value))
+table(knockdown_genes_chd7_zic1$`chd7_adj. P-Value` < 0.05,
+!is.na(knockdown_genes_chd7_zic1$zic1_q_value))
+
 ```
+
+Notes:
+- Most diff genes in the Zic knockdown are also diff in the Chd7 knockdown
+- But, no or small correlation in sign. So some genes that go up in Zic also go up in Chd7, but for other it goes down. 
+- Is Zic an insulator?
+
+Next:
+- Re-do the RNAseq analysis to make the overlap of diff lists?
+
 
