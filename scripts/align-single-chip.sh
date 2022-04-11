@@ -86,7 +86,7 @@ bamCoverage \
 -p 8  \
 -o $NAME'_norm.bw' \
 --normalizeUsing BPM \
---effectiveGenomeSize 2730871774 \
+--effectiveGenomeSize 2730871774 \ 
 --ignoreForNormalization chrX 2>&1 | tee $WD$NAME'/bamcoverage.log'
 
 
@@ -132,8 +132,7 @@ macs2 filterdup -i sorted.all.bed --keep-dup=1 -o sequence.final.bed
 # For ATAC seq use these arguments: -nomodel --shift 37 --extsize 
 
 echo Calling ChIP peaks with MACS...
-macs2 callpeak -t sequence.final.bed -f BED -g mm -n ./macs_n.fdr01 -q 0.01 --bdg || { echo ERROR:macs2 does not work, exiting... ; exit 1; }
-macs2 callpeak -t sequence.final.bed -f BED --broad -g mm -n ./macs_b.fdr01 -q 0.01 --bdg || { echo ERROR:macs2 does not work, exiting... ; exit 1; }
+macs2 callpeak -t sequence.final.bed -f BED -g mm -n ./macs_n.fdr01 -q 0.01 --bdg --nomodel --ext 147 || { echo ERROR:macs2 does not work, exiting... ; exit 1; }
 
 
 echo "................10.  Finished Peak Calling, Now Tidying Up"
