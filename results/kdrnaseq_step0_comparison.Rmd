@@ -51,7 +51,7 @@ knockdown_genes_zic1_chd7 %>%
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
   geom_smooth(method = "lm", se = FALSE , color = "black") +
-  annotate(geom = "text", label = round(cor(knockdown_genes_zic1_chd7$chd7_log2FC,knockdown_genes_zic1_chd7$`zic1_log2(Fold-Change)`),3)^2,x = -0.8,y=-2.5) +
+  annotate(geom = "text", label = round(cor(knockdown_genes_zic1_chd7$chd7_log2FC,knockdown_genes_zic1_chd7$`zic1_log2(Fold-Change)`),3),x = -0.8,y=-2.5) +
   ylab("log2FC(Zic1 KD / Ctrl)") +
   xlab("log2FC(Chd7 KD / Ctrl)")
 
@@ -64,7 +64,7 @@ knockdown_genes_zic2_chd7 %>%
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
   geom_smooth(method = "lm", se = FALSE , color = "black") +
-  annotate(geom = "text", label = round(cor(knockdown_genes_zic2_chd7$chd7_log2FC,knockdown_genes_zic2_chd7$`zic2_log2(Fold-Change)`),3)^2,x = -0.8,y=-2.5) +
+  annotate(geom = "text", label = round(cor(knockdown_genes_zic2_chd7$chd7_log2FC,knockdown_genes_zic2_chd7$`zic2_log2(Fold-Change)`),3),x = -0.8,y=-2.5) +
   ylab("log2FC(Zic1 KD / Ctrl)") +
   xlab("log2FC(Chd7 KD / Ctrl)")
 
@@ -99,6 +99,7 @@ table(knockdown_genes_chd7_zic1$`chd7_adj. P-Value` < 0.05,
 Notes:
 - Most diff genes in the Zic knockdown are also diff in the Chd7 knockdown
 - But, no or small correlation in sign. So some genes that go up in Zic also go up in Chd7, but for other it goes down. 
+- It is also not that all effects are through Chd7 right, because some do not change. 
 - Is Zic an insulator?
 
 Next:
