@@ -130,5 +130,14 @@ To do:
   
 - Check methods of both previous papers
 
+#2022-04-06
+- Meeting:
+To do:
+ - Re-do the enhancer assignments using the whole bin / Melyssa's strategy
+ - Dig more into the RNA seq knockdown data
+ - Compare HiC p22 vs p4
+ 
+#2022-04-07
+
 
 
