@@ -1,0 +1,126 @@
+---
+title: "zic_rnaseq"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(DESeq2)
+```
+
+# Read counts table
+
+Read and join counts tables
+```{r}
+counts_list <- map(list.files("../data_output/rnaseq_zic/counts",pattern = "_gene.reads", full.names = TRUE),
+                    ~ {
+                      counts <- read_tsv(.x, col_names = FALSE)
+                      col_name <- basename(.x)
+                      col_name <- str_remove(col_name,"_gene.reads")
+                      colnames(counts) <- c("gene_names",col_name)
+                      return(counts)
+                    })
+
+counts <- purrr::reduce(counts_list, left_join, by = "gene_names")
+
+rownames(counts) <- counts$gene_names
+counts$gene_names <- NULL
+```
+
+Read sample info
+```{r}
+sample_info <- read_tsv("../data_input/rnaseq/rnaseq_kd_filereport_read_run_PRJNA259371_tsv.txt")
+
+sample_info <- sample_info[sample_info$run_accession %in% colnames(counts),]
+rownames(sample_info) <- sample_info$run_accession
+sample_info <- sample_info[colnames(counts),]
+
+sample_info <- sample_info %>%
+  separate(sample_title, into = c("day", "group1","group2","cgn","rnaseq","rep","rep2","repn") ) %>%
+  transmute(group = paste(group1, group2, sep = "-"),
+         repn = paste0("rep",repn),
+         run_accession = run_accession,
+         col_name = paste(group,repn,sep = "_"))
+  
+rownames(sample_info) <- sample_info$col_name
+colnames(counts) <- sample_info$col_name
+
+```
+
+Make DESEQ object
+```{r}
+dds_all <- DESeqDataSetFromMatrix(countData = counts,
+                              colData = sample_info,
+                              design = ~ group)
+dds_zic1 <- dds_all[,c(1,2,5,6)]
+dds_zic1$group <- fct_drop(dds_zic1$group)
+dds_zic2 <- dds_all[,c(3,4,5,6)]
+dds_zic2$group <- fct_drop(dds_zic2$group)
+
+```
+
+# Exploratory PCA
+```{r}
+vsd <- vst(dds_all)
+vsd_zic1 <- vst(dds_zic1)
+vsd_zic2 <- vst(dds_zic2)
+
+```
+
+```{r}
+plotPCA(vsd, intgroup = "group", ntop = 5000)
+plotPCA(vsd_zic1, intgroup = "group", ntop = 5000)
+plotPCA(vsd_zic2, intgroup = "group", ntop = 5000)
+
+```
+
+# Test
+```{r}
+# Prefiltering
+keep <- rowSums(counts(dds_zic1)) >= 10
+dds_zic1 <- dds_zic1[keep,]
+
+keep <- rowSums(counts(dds_zic2)) >= 10
+dds_zic2 <- dds_zic2[keep,]
+
+# Build model
+dds_zic1 <- DESeq(dds_zic1)
+dds_zic2 <- DESeq(dds_zic2)
+
+# Results 
+res_zic1 <- results(object = dds_zic1, alpha = 0.05)
+res_zic2 <- results(object = dds_zic2, alpha = 0.05)
+
+# Shrinkage
+res_zic1_ashr <- lfcShrink(dds_zic1,
+                          res  = res_zic1,
+                          type="ashr")
+res_zic2_ashr <- lfcShrink(dds_zic2,
+                          res  = res_zic2,
+                          type="ashr")
+
+```
+
+
+
+# Plots
+MA
+```{r}
+options(scipen = 999)
+plotMA(res_zic1,main = "res_zic1", ylim = c(-4,4))
+plotMA(res_zic1_ashr,main = "res_zic1_ashr", ylim = c(-4,4))
+plotMA(res_zic2,main = "res_zic2", ylim = c(-4,4))
+plotMA(res_zic2_ashr,main = "res_zic2_ashr", ylim = c(-4,4))
+
+```
+
+```{r}
+sum(replace_na(res_zic1_ashr$padj,1) < 0.01)
+sum(replace_na(res_zic2_ashr$padj,1) < 0.01)
+
+```
+
