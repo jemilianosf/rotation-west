@@ -146,16 +146,19 @@ To do:
 #2022-04-11
 To do for the week:
 - Re-do the RNAseq in vitro + correlation with Chd7 / Chd4 cKOs
-
-- Got count matrices
+  - Got count matrices
 
 - Re-align the ChIP seq data:
   Reddy et al: P4 CTCF and Chd7, both WT and Chd7cKO.
   Goodman et al: the P22 CTCF and Chd4, both WT and Chd4cKO,
-
-- Download data / went over the scripts w Melyssa 
+  - Download data / went over the scripts w Melyssa 
 
 - Re-do the enhancer assignments using the whole bin / Melyssa's strategy
  
 #2022-04-12
-
+- Re-align the ChIP seq data:
+  - Run realignments
+- Re-do the RNAseq in vitro + correlation with Chd7 / Chd4 cKOs
+  - DESEq 
+  - Correlations
+  
