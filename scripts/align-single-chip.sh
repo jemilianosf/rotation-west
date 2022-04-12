@@ -51,17 +51,13 @@ echo trimming adaptors...
 java -jar $trim SE -threads 8 -phred33 $RD'/'$NAME'.fastq' $NAME'.trimmed.fastq' ILLUMINACLIP:${adapters}TruSeq3-SE.fa:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
 
 
-#sorting trimmed reads
-echo sorting trimmed fastqs
-cat $TRIMMED$NAME'.trimmed.fastq' | paste - - - - | sort -k1,1 -t " " | tr "\t" "\n" >$TRIMMED$NAME'.sorted.fastq'
-
 
 ## Run alignment
 cd $WD     # changing directory to where the alignments should be saved
 mkdir $NAME # making a folder to hold the samples alignment files
 cd $NAME        # changing directory into the folder created above
 echo run alignment...
-STAR --genomeDir $REF --runThreadN 8 --readFilesIn $TRIMMED$NAME'.sorted.fastq' --outFileNamePrefix $NAME --limitBAMsortRAM 20000000000 --outSAMtype BAM SortedByCoordinate --outSAMunmapped Within --outSAMattributes Standard
+STAR --genomeDir $REF --runThreadN 8 --readFilesIn $TRIMMED$NAME'.trimmed.fastq' --outFileNamePrefix $NAME --limitBAMsortRAM 20000000000 --outSAMtype BAM SortedByCoordinate --outSAMunmapped Within --outSAMattributes Standard
 
 
 # Filter out reads that have aligned
@@ -71,7 +67,7 @@ STAR --genomeDir $REF --runThreadN 8 --readFilesIn $TRIMMED$NAME'.sorted.fastq' 
 #-h:Include the header in the output
 #-o: ouput to file
 echo getting accepted hits...
-samtools view -F 4 -b -h -o "$NAME"accepted_hits.bam *Aligned.sortedByCoord.out.bam || { echo 'ERROR: could not remove unmapped reads from .bam alignment, exiting...' ; exit 1; }
+samtools view -F 4 -b -h -o "$NAME"accepted_hits.bam "$NAME"Aligned.sortedByCoord.out.bam || { echo 'ERROR: could not remove unmapped reads from .bam alignment, exiting...' ; exit 1; }
 
 echo beginning bamcoverage normalization...
 # index bamfile for bamcoverage 
@@ -82,11 +78,11 @@ samtools index -b "$NAME"accepted_hits.bam "$NAME"accepted_hits.bam.bai
 
 #Big to Bigwig
 bamCoverage \
--b *accepted_hits.bam \
--p 8  \
+-b "$NAME"accepted_hits.bam \
+-p 8 \
 -o $NAME'_norm.bw' \
 --normalizeUsing BPM \
---effectiveGenomeSize 2730871774 \ 
+--effectiveGenomeSize 2730871774 \
 --ignoreForNormalization chrX 2>&1 | tee $WD$NAME'/bamcoverage.log'
 
 
@@ -112,7 +108,7 @@ grep -w "chrM" sequence.bed | wc -l > chrM.txt
 
 # Filtering duplicates
 echo fitering duplicates
-macs2 filterdup -i sorted.all.bed --keep-dup=1 -o sequence.final.bed
+macs2 filterdup -f BED -i sorted.all.bed --keep-dup=1 -o sequence.final.bed
 
 # peak calling
 #Flags:
@@ -138,7 +134,7 @@ macs2 callpeak -t sequence.final.bed -f BED -g mm -n ./macs_n.fdr01 -q 0.01 --bd
 echo "................10.  Finished Peak Calling, Now Tidying Up"
 
 
-rm *sortedByName.bam
+rm *Aligned.sortedByCoord.out.bam
 rm *chr*
 rm ${TRIMMED}${NAME}*
 
