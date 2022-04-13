@@ -1,0 +1,95 @@
+---
+title: "kdrnaseq_step2_exploration"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+Read differentially expressed genes in Zic knockdowns
+
+```{r}
+knockdown_genes_zic1 <- read_tsv("../data_output/rnaseq_zic/diffexpr/res_zic1_ashr.tsv")
+knockdown_genes_zic2 <- read_tsv("../data_output/rnaseq_zic/diffexpr/res_zic2_ashr.tsv")
+
+dds_zic1 <- readRDS("../data_output/rnaseq_zic/diffexpr/dds_zic1.Rds")
+dds_zic2 <- readRDS("../data_output/rnaseq_zic/diffexpr/dds_zic2.Rds")
+
+res_zic1_ashr <- readRDS("../data_output/rnaseq_zic/diffexpr/res_zic1_ashr.Rds")
+res_zic2_ashr <- readRDS("../data_output/rnaseq_zic/diffexpr/res_zic2_ashr.Rds")
+
+```
+
+Main Q: are any of the Nurf or Nurd complexes genes in the Diff expressed genes ? 
+
+```{r}
+genes_chds <- rownames(dds_zic1)[str_detect(rownames(dds_zic1),"Chd")]
+genes_zics <- rownames(dds_zic1)[str_detect(rownames(dds_zic1),"Zic")]
+
+```
+
+
+```{r}
+plotCounts(dds_zic1, gene="Chd7", intgroup="group", transform = TRUE)
+plotCounts(dds_zic2, gene="Chd7", intgroup="group", transform = TRUE)
+
+```
+
+```{r}
+plotCounts(dds_zic1, gene="Chd4", intgroup="group")
+plotCounts(dds_zic2, gene="Chd4", intgroup="group")
+
+
+
+```
+
+```{r}
+for (gene in genes_chds){
+  plotCounts(dds_zic1, gene=gene, intgroup="group")
+}
+```
+```{r}
+for (gene in genes_chds){
+  plotCounts(dds_zic2, gene=gene, intgroup="group")
+}
+
+for (gene in genes_zics){
+  plotCounts(dds_zic1, gene=gene, intgroup="group")
+}
+```
+
+```{r}
+for (gene in genes_zics){
+  plotCounts(dds_zic2, gene=gene, intgroup="group")
+}
+
+```
+
+# Volcano plots
+```{r}
+knockdown_genes_zic1 %>%
+  drop_na(padj) %>%
+  ggplot(aes(log2FoldChange, -log10(padj), color = padj < 0.05)) +
+  geom_point(alpha = 0.5) +
+  theme_classic() +
+  theme(aspect.ratio = 1) +
+  scale_color_manual(values = c("FALSE" = "gray", "TRUE" = "blue")) +
+  
+```
+
+```{r}
+knockdown_genes_zic2 %>%
+  drop_na(padj) %>%
+  ggplot(aes(log2FoldChange, -log10(padj), color = padj < 0.05)) +
+  geom_point(alpha = 0.5) +
+  theme_classic() +
+  theme(aspect.ratio = 1) +
+  scale_color_manual(values = c("FALSE" = "gray", "TRUE" = "blue")) 
+
+```
+
