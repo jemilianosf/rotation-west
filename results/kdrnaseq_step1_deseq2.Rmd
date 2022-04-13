@@ -26,9 +26,10 @@ counts_list <- map(list.files("../data_output/rnaseq_zic/counts",pattern = "_gen
                     })
 
 counts <- purrr::reduce(counts_list, left_join, by = "gene_names")
-
+counts <- as.data.frame(counts)
 rownames(counts) <- counts$gene_names
 counts$gene_names <- NULL
+
 ```
 
 Read sample info
@@ -56,11 +57,12 @@ Make DESEQ object
 dds_all <- DESeqDataSetFromMatrix(countData = counts,
                               colData = sample_info,
                               design = ~ group)
+
+
 dds_zic1 <- dds_all[,c(1,2,5,6)]
 dds_zic1$group <- fct_drop(dds_zic1$group)
 dds_zic2 <- dds_all[,c(3,4,5,6)]
 dds_zic2$group <- fct_drop(dds_zic2$group)
-
 ```
 
 # Exploratory PCA
@@ -118,9 +120,25 @@ plotMA(res_zic2_ashr,main = "res_zic2_ashr", ylim = c(-4,4))
 
 ```
 
+
+# Write results tables
+
 ```{r}
-sum(replace_na(res_zic1_ashr$padj,1) < 0.01)
-sum(replace_na(res_zic2_ashr$padj,1) < 0.01)
+saveRDS(dds_zic1, "../data_output/rnaseq_zic/diffexpr/dds_zic1.Rds")
+saveRDS(dds_zic2, "../data_output/rnaseq_zic/diffexpr/dds_zic2.Rds")
+
+saveRDS(res_zic1_ashr, "../data_output/rnaseq_zic/diffexpr/res_zic1_ashr.Rds")
+saveRDS(res_zic2_ashr, "../data_output/rnaseq_zic/diffexpr/res_zic2_ashr.Rds")
+
+res_zic1_ashr <- as.data.frame(res_zic1_ashr) %>%
+  rownames_to_column(var = "gene_names")
+res_zic2_ashr <- as.data.frame(res_zic2_ashr) %>%
+  rownames_to_column(var = "gene_names")
+
+readr::write_tsv(res_zic1_ashr,
+                 "../data_output/rnaseq_zic/diffexpr/res_zic1_ashr.tsv")
+readr::write_tsv(res_zic2_ashr,
+                 "../data_output/rnaseq_zic/diffexpr/res_zic2_ashr.tsv")
 
 ```
 
