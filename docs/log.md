@@ -162,3 +162,28 @@ To do for the week:
   - DESEq 
   - Correlations
   
+#2022-04-12
+- Re-do the RNAseq in vitro + correlation with Chd7 / Chd4 cKOs
+  - Correlations
+
+- RNAseq Zic KD exploration of targets
+Main points:
+
+- Zic is a negative transcriptional regulator of Chd7: 
+- Melyssa showed Zic binding in Chd7 enhancers 
+- In vitro CutNRun shows Zic binding in Chd7 promoter
+- Chd7 expression goes up in both Zic1 and Zic2 knockdowns
+- Zic2 expression does not change in Chd7 
+- Zic1 expression does not change in Chd7 ??? 
+
+- Chd7 cKO and Zic1/2 KD show overlap of disregulated genes
+- In particular in Zic1 KD, negative correlation in fold change with Chd7 cKO
+
+- Zic and Chd7 might also overlap at their target enhancers:
+- Different direction of change for genes that are significant in both 
+- Overlap of Zic and Chd7 ChIP???
+
+- ChIP seq overlaps
+- 
+
+- Re-assign enhancer-promoters peaks
