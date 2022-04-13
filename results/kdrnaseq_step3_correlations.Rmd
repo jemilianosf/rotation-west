@@ -1,0 +1,239 @@
+---
+title: "kdrnaseq_step2_correlations"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Comparison of Zic KD with expression re-analyzed from Frank et al vs Tables from Chd7 cKO
+
+```{r}
+library(tidyverse)
+```
+
+Read differentially expressed genes in Zic knockdowns
+
+```{r}
+knockdown_genes_zic1 <- read_tsv("../data_output/rnaseq_zic/diffexpr/res_zic1_ashr.tsv")
+knockdown_genes_zic2 <- read_tsv("../data_output/rnaseq_zic/diffexpr/res_zic2_ashr.tsv")
+
+```
+Read differentially expressed genes in chd7 knockdowns
+
+```{r}
+knockdown_genes_chd7 <- readxl::read_excel("../data_input/rnaseq/GSE164360_RNA-seq_Summary.xlsx")
+```
+
+
+
+
+Change column names before the join
+
+```{r}
+colnames(knockdown_genes_zic1) <- paste0("zic1_",colnames(knockdown_genes_zic1))
+colnames(knockdown_genes_zic2) <- paste0("zic2_",colnames(knockdown_genes_zic2))
+colnames(knockdown_genes_chd7) <- paste0("chd7_",colnames(knockdown_genes_chd7))
+
+```
+
+
+```{r}
+knockdown_genes_zic1_chd7 <- inner_join(knockdown_genes_zic1,
+                                       knockdown_genes_chd7, 
+                                       by = c("zic1_gene_names" = "chd7_GeneID"))
+knockdown_genes_zic2_chd7 <- inner_join(knockdown_genes_zic2,
+                                       knockdown_genes_chd7, 
+                                       by = c("zic2_gene_names" = "chd7_GeneID"))
+
+```
+
+
+
+
+```{r}
+knockdown_genes_zic1_chd7 %>%
+  drop_na(zic1_padj) %>%
+  mutate(significant_in_both = `chd7_adj. P-Value` < 0.05 & zic1_padj < 0.05) %>%
+  ggplot(aes( y = zic1_log2FoldChange, x = chd7_log2FC, color = significant_in_both)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_smooth(method = "lm", se = FALSE , color = "black") +
+  annotate(geom = "text", label = round(cor(knockdown_genes_zic1_chd7$chd7_log2FC,knockdown_genes_zic1_chd7$zic1_log2FoldChange),3),x = -0.8,y=-2.5) +
+  ylab("log2FC(Zic1 KD / Ctrl)") +
+  xlab("log2FC(Chd7 cKO / Ctrl)") +
+  theme_classic() +
+  theme(aspect.ratio = 1) +
+  scale_color_manual(values = c("FALSE" ="gray","TRUE" = "blue"))
+
+knockdown_genes_zic2_chd7 %>%
+  drop_na(zic2_padj) %>%
+  mutate(significant_in_both = `chd7_adj. P-Value` < 0.05 & zic2_padj < 0.05) %>%
+  ggplot(aes( y = zic2_log2FoldChange, x = chd7_log2FC, color = significant_in_both)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_smooth(method = "lm", se = FALSE , color = "black") +
+  annotate(geom = "text", label = round(cor(knockdown_genes_zic2_chd7$chd7_log2FC,knockdown_genes_zic2_chd7$zic2_log2FoldChange),3),x = -0.8,y=-2.5) +
+  ylab("log2FC(Zic2 KD / Ctrl)") +
+  xlab("log2FC(Chd7 cKO / Ctrl)") +
+  theme_classic() +
+  theme(aspect.ratio = 1) +
+  scale_color_manual(values = c("FALSE" ="gray","TRUE" = "blue"))
+
+```
+
+```{r}
+
+knockdown_genes_zic1_chd7_sig_both <- knockdown_genes_zic1_chd7 %>%
+  drop_na(zic1_padj) %>%
+  mutate(significant_in_both = `chd7_adj. P-Value` < 0.05 & zic1_padj < 0.05) %>%
+  filter(significant_in_both) 
+
+knockdown_genes_zic2_chd7_sig_both <- knockdown_genes_zic2_chd7 %>%
+  drop_na(zic2_padj) %>%
+  mutate(significant_in_both = `chd7_adj. P-Value` < 0.05 & zic2_padj < 0.05) %>%
+  filter(significant_in_both) 
+
+knockdown_genes_zic1_chd7_sig_both %>%
+  ggplot(aes( y = zic1_log2FoldChange, x = chd7_log2FC)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_smooth(method = "lm", se = FALSE , color = "black") +
+  annotate(geom = "text", label = round(cor(knockdown_genes_zic1_chd7_sig_both$chd7_log2FC,knockdown_genes_zic1_chd7_sig_both$zic1_log2FoldChange),3),x = -0.8,y=-2.5) +
+  ylab("log2FC(Zic1 KD / Ctrl)") +
+  xlab("log2FC(Chd7 cKO / Ctrl)") +
+  theme_classic() +
+  theme(aspect.ratio = 1) 
+
+knockdown_genes_zic2_chd7_sig_both %>%
+  ggplot(aes( y = zic2_log2FoldChange, x = chd7_log2FC)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_smooth(method = "lm", se = FALSE , color = "black") +
+  annotate(geom = "text", label = round(cor(knockdown_genes_zic2_chd7_sig_both$chd7_log2FC,knockdown_genes_zic2_chd7_sig_both$zic2_log2FoldChange),3),x = -0.8,y=-2.5) +
+  ylab("log2FC(Zic2 KD / Ctrl)") +
+  xlab("log2FC(Chd7 cKO / Ctrl)") +
+  theme_classic() +
+  theme(aspect.ratio = 1) 
+```
+
+
+```{r}
+knockdown_genes_zic1_chd7 %>%
+  drop_na(zic1_padj) %>%
+  mutate(zic1_rank = rank(zic1_padj),
+         chd7_rank = rank(`chd7_adj. P-Value`)) %>%
+  ggplot(aes(zic1_rank, chd7_rank)) +
+  geom_bin2d() +
+  scale_fill_viridis_c() +
+  theme_minimal() +
+  theme(aspect.ratio = 1) 
+
+knockdown_genes_zic2_chd7 %>%
+  drop_na(zic2_padj) %>%
+  mutate(zic2_rank = rank(zic2_padj),
+         chd7_rank = rank(`chd7_adj. P-Value`)) %>%
+  ggplot(aes(zic2_rank, chd7_rank)) +
+  geom_bin2d() +
+  scale_fill_viridis_c() +
+  theme_minimal() +
+  theme(aspect.ratio = 1) 
+
+```
+```{r}
+library(UpSetR)
+
+upset_list <- list("Zic1" = knockdown_genes_zic1_chd7 %>%
+                     filter(zic1_padj < 0.05) %>%
+                     pull(zic1_gene_names),
+                   "Zic2" = knockdown_genes_zic2_chd7 %>%
+                     filter(zic2_padj < 0.05) %>%
+                     pull(zic2_gene_names),
+                   "Chd7" = knockdown_genes_chd7 %>%
+                     filter(`chd7_adj. P-Value` < 0.05) %>%
+                     pull(chd7_GeneID))
+
+upset(fromList(upset_list),order.by = "freq")
+
+```
+```{r}
+upset_list <- list("Zic1" = knockdown_genes_zic1_chd7 %>%
+                     filter(zic1_padj < 0.05) %>%
+                     pull(zic1_gene_names),
+                   "Chd7" = knockdown_genes_chd7 %>%
+                     filter(`chd7_adj. P-Value` < 0.05) %>%
+                     pull(chd7_GeneID))
+
+upset(fromList(upset_list),order.by = "freq")
+
+```
+```{r}
+upset_list <- list(
+                   "Zic2" = knockdown_genes_zic2_chd7 %>%
+                     filter(zic2_padj < 0.05) %>%
+                     pull(zic2_gene_names),
+                   "Chd7" = knockdown_genes_chd7 %>%
+                     filter(`chd7_adj. P-Value` < 0.05) %>%
+                     pull(chd7_GeneID))
+upset(fromList(upset_list),order.by = "freq")
+
+```
+
+
+```{r}
+
+fisher.test(knockdown_genes_zic1_chd7$`chd7_adj. P-Value` < 0.05,
+knockdown_genes_zic1_chd7$zic1_padj < 0.05)
+
+fisher.test(knockdown_genes_zic2_chd7$`chd7_adj. P-Value` < 0.05,
+knockdown_genes_zic2_chd7$zic2_padj < 0.05)
+
+
+table(knockdown_genes_zic1_chd7$`chd7_adj. P-Value` < 0.05,
+knockdown_genes_zic1_chd7$zic1_padj < 0.05)
+table(knockdown_genes_zic2_chd7$`chd7_adj. P-Value` < 0.05,
+knockdown_genes_zic2_chd7$zic2_padj < 0.05)
+
+```
+
+
+Zic expression in Chd7 KD
+```{r}
+is.na(knockdown_genes_chd7$`chd7_adj. P-Value`)
+knockdown_genes_chd7_to_plot <-  knockdown_genes_chd7 %>%
+  mutate(padj = `chd7_adj. P-Value`,
+         log2FoldChange = chd7_log2FC) %>%
+  drop_na(padj)
+
+knockdown_genes_chd7_to_plot_zic <- knockdown_genes_chd7_to_plot %>%
+  filter(str_detect(chd7_GeneID,"Zic"))
+
+
+knockdown_genes_chd7_to_plot_zic %>%
+  ggplot(aes(log2FoldChange, -log10(padj), color = padj < 0.05)) +
+  geom_point(alpha = 0.5) +
+  theme_classic() +
+  theme(aspect.ratio = 1) +
+  scale_color_manual(values = c("FALSE" = "gray", "TRUE" = "blue")) +
+  geom_text(data = knockdown_genes_chd7_to_plot_zic, mapping = aes(label = chd7_GeneID))
+
+knockdown_genes_chd7 %>%
+  filter(str_detect(chd7_GeneID,"Zic"))
+```
+
+
+Notes:
+- Zic1 looks like there is also a correlation in FC
+- Zic2 looks like there is less overlap
+- But, no or small correlation in sign. So some genes that go up in Zic also go up in Chd7, but for other it goes down. 
+- It is also not that all effects are through Chd7 right, because some do not change. 
+- Is Zic an insulator?
+
+Next steps:
+- Look at Chd4?
+- What are the shared genes? -> Get list of genes, or get list of 
