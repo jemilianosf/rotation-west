@@ -183,7 +183,24 @@ Main points:
 - Different direction of change for genes that are significant in both 
 - Overlap of Zic and Chd7 ChIP???
 
-- ChIP seq overlaps
-- 
 
-- Re-assign enhancer-promoters peaks
+#2022-04-13
+
+- ChIP seq overlaps
+  - Clean the hardac directories / copy all that's left
+  - Create session in IGV to show overlaps
+  - Do a quick overlap of peaks
+
+- Re-assign enhancer-promoters peaks with Melyssa's pipeline
+
+#2022-04-14
+
+
+- Other things that came up:
+  - Look at seacr signal to get more stringent peaks
+  - Compare gene-lists by rank rank hypergeometric overlap
+  - Compare Chd7/4 knockdowns with time changes
+  - Look at the peaks that go up both in vivo and in vitro and what they look like in expression.
+  
+  
+
