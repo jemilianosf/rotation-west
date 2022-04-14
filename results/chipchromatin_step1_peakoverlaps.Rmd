@@ -1,0 +1,142 @@
+---
+title: "chipchromatin_step1_peakoverlaps"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(rtracklayer)
+```
+
+## load ChIP peaks - reprocessed Melyssa
+```{r}
+chip_macs_peaks_dir <- "../data_input/melyssa_zic_data/"
+chip_macs_peaks_files <- list.files(chip_macs_peaks_dir,pattern = "bed$")
+chip_macs_peaks_full <- paste0(chip_macs_peaks_dir,chip_macs_peaks_files)
+chip_macs_peaks_names <- c("P7","NS","P60")
+
+chip_macs_granges <- lapply(chip_macs_peaks_full, import.bedGraph)
+
+names(chip_macs_granges) <- chip_macs_peaks_names
+
+```
+
+## load ChIP peaks 
+```{r}
+chip_chromatin_peaks_dir <- "../data_output/chip_chromatin/narrowPeak/"
+chip_chromatin_peaks_files <- list.files(chip_chromatin_peaks_dir)
+chip_chromatin_peaks_full <- paste0(chip_chromatin_peaks_dir,chip_chromatin_peaks_files)
+names(chip_chromatin_peaks_full) <- str_split(chip_chromatin_peaks_files,"_",2) %>% map_chr(1)
+chip_chromatin_peaks <- map(chip_chromatin_peaks_full, import)
+
+```
+
+Change names
+```{r}
+reports_tsv <- map(list.files("../data_output/ena_reports/", full.names = TRUE), read_tsv)
+
+reports_tsv <- do.call(rbind, map(reports_tsv, function(x) {
+  x <- x[x$run_accession %in% names(chip_chromatin_peaks),]
+  return(x)
+}))
+sample_titles <- reports_tsv$sample_title
+names(sample_titles) <- reports_tsv$run_accession
+
+names(chip_chromatin_peaks) <- str_replace_all(sample_titles[names(chip_chromatin_peaks)]," ","_")
+
+
+names(chip_chromatin_peaks) <- str_replace_all(names(chip_chromatin_peaks),"-","_")
+
+names(chip_chromatin_peaks) 
+```
+
+## Overlaps
+```{r}
+get_overlaps_by_element <- function(peaks_a, peaks_b) {
+                              intersection1 <- sum(IRanges::overlapsAny(peaks_a,peaks_b))
+                              setdiff1 <- length(peaks_a) - intersection1
+                              intersection2 <- sum(IRanges::overlapsAny(peaks_b,peaks_a))
+                              setdiff2 <-length(peaks_b) - intersection2
+                              
+                              return(data.frame("intersection1" = intersection1,
+                                                "intersection2" = intersection2,
+                                                "setdiff1" = setdiff1,
+                                                "setdiff2" = setdiff2))}
+
+```
+
+
+# Get overlaps by element
+
+
+```{r}
+
+get_peaks_overlaps <- function(chip_macs_granges, peaks){
+  peaks_overlaps <- rbind(get_overlaps_by_element(chip_macs_granges$P7, peaks),
+                                  get_overlaps_by_element(chip_macs_granges$NS, peaks),
+                                  get_overlaps_by_element(chip_macs_granges$P60, peaks))
+  
+  
+  peaks_overlaps$set1 <- c("P7" , "NS", "P60")
+  peaks_overlaps$set2 <- c("peaks")
+  return(peaks_overlaps)
+}
+
+peaks_overlaps_chd7_p4 <- get_peaks_overlaps(chip_macs_granges, chip_chromatin_peaks$P4_ChIP_CHD7_Ctrl_1)
+
+peaks_overlaps_chd7KO_p4 <- get_peaks_overlaps(chip_macs_granges, chip_chromatin_peaks$P4_ChIP_CHD7_cKO)
+
+peaks_overlaps_ctcf_p4 <- get_peaks_overlaps(chip_macs_granges, chip_chromatin_peaks$P4_ChIP_CTCF_Ctrl_1)
+
+peaks_overlaps_chd4_p22 <- get_peaks_overlaps(chip_macs_granges, chip_chromatin_peaks$Chd4_WT_P22_CB1)
+
+peaks_overlaps_chd4KO_p22 <- get_peaks_overlaps(chip_macs_granges, chip_chromatin_peaks$Chd4_cKO_P22_CB1)
+
+
+peaks_overlaps_list <- list("Chd7 P4" = peaks_overlaps_chd7_p4,
+                            "Chd7KO P4" = peaks_overlaps_chd7KO_p4,
+                            "CTCF P4" = peaks_overlaps_ctcf_p4,
+                            "Chd4 P22" = peaks_overlaps_chd4_p22,
+                            "Chd4KO P22" = peaks_overlaps_chd4KO_p22) 
+```
+
+# Plot percentages
+
+What percentage of Zic peaks overlap an early CTCF Peak
+
+```{r}
+library(tidyverse)
+
+plot_peaks_overlaps <- function(peaks_overlaps){
+  peaks_overlaps %>%
+    dplyr::select(-setdiff2, -intersection2) %>%
+    pivot_longer(where(is.numeric)) %>%
+    group_by(set1,set2) %>%
+    mutate(percentage = 100 * value / sum(value)) %>%
+    ungroup() %>%
+    filter(name == "intersection1") %>%
+    mutate(set1 = fct_relevel(set1, "P7","NS","P60")) %>%
+    ggplot(aes(y = percentage, x = set1, fill = set1)) +
+    geom_col(width = 0.5) +
+    ylab(NULL) +
+    ylab("Percentage") +
+    xlab(NULL) +
+    theme_light() +
+    theme(aspect.ratio = 1.5,legend.title = element_blank()) +
+    ylim(c(0,100)) +
+    scale_fill_manual(values = c("P7"="blue","NS"="gray","P60"="red"))
+}
+
+```
+
+```{r}
+imap(peaks_overlaps_list, ~ plot_peaks_overlaps(.x) + ggtitle(.y))
+```
+
+Notes:
+- At least a subset of late Zic binding is concomitant with Chd4.
+- Many late Zic peaks also overlap early Chd7, 
