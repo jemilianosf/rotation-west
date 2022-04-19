@@ -1,0 +1,124 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+
+mapped_data <- read_tsv("../data_input/melyssa_zic_data/mapped_data.txt")
+
+```
+
+
+```{r}
+young_unmapped_loops <- mapped_data %>%
+  distinct() %>%
+  dplyr::filter(!str_detect(id, "adult") &
+                is.na(gene_name) ) %>%
+  pull(id)
+
+mapped_data_with_anchors_unmapped <- mapped_data_with_anchors %>%
+  dplyr::filter(id %in% young_unmapped_loops)
+
+mapped_data_with_anchors_unmapped <- mapped_data_with_anchors_unmapped[mapped_data_with_anchors_unmapped$tx_id %in% mapping$tx_id,]
+mapped_data_with_anchors_unmapped
+```
+
+```{r}
+mapped_data_with_anchors %>%
+  dplyr::filter(zic_peak == "chr1:6214057-6215967")
+
+mapped_data_with_anchors %>%
+  dplyr::filter(anchor_name == "chr1:6210000-6220000")
+
+chr1	6210000	6220000
+
+for (i in (8:100)){
+  sub_mapped <- mapped_data_with_anchors %>%
+    dplyr::filter(id ==paste0("adult_loop_",i))
+  if(nrow(sub_mapped) == 1) print(sub_mapped)
+}
+
+
+mapped_data_with_anchors %>%
+  dplyr::filter(id
+ == "adult_loop_21")
+
+
+mapped_data_with_anchors %>%
+  dplyr::filter(anchor_name.x
+ == "chr1:13170000-13180000")
+
+zic_data %>%
+  dplyr::filter(anchor_name == "chr1:13170000-13180000")
+
+annot %>%
+  dplyr::filter(anchor_name == "chr1:13170000-13180000")
+
+```
+
+
+From all bins that overlap a peak, how many don't have annotation?
+```{r}
+anchors_that_olap_zic <- zic_data %>%
+  dplyr::select(anchor_name) %>%
+  distinct() 
+
+all(anchors_that_olap_zic$anchor_name %in% annot$anchor_name)
+
+```
+
+All anchors have an annotated gene, but the nearest gene to many of the anchors are far from the tss.
+
+I want to know if the zic peaks that overlap anchors that are far from any tss were assigned in the end to the gene of the other anchor of the loop.
+
+First get anchors that are far (> 10kb) from a tss 
+
+```{r}
+annot_far <- annot[abs(annot$distanceToTSS) > 10000,]
+```
+
+Get Zic peaks that overlap these anchors
+
+```{r}
+zic_data_far = zic_loop_map %>% 
+  dplyr::mutate(anchor_name = paste0(X1, ":", X2, "-", X3),
+                zic_peak = paste0(X4, ":", X5, "-", X6)) %>% 
+  dplyr::select(anchor_name, zic_peak) %>%
+  distinct()
+
+zic_data_far <- zic_data_far[zic_data_far$anchor_name %in% annot_far$anchor_name,]
+
+
+```
+
+How many of these peaks are annotated by the end?
+All 
+```{r}
+mapped_data_with_anchors[mapped_data_with_anchors$zic_peak %in% zic_data_far$zic_peak,  ]
+```
+
+How many genes per peak? 
+```{r}
+mapped_data_with_anchors %>%
+  ungroup() %>%
+  drop_na(gene_name) %>%
+  dplyr::select(zic_peak, gene_name) %>%
+  distinct() %>%
+  group_by(zic_peak) %>%
+  summarise(n_genes_per_peak = n()) %>%
+  ungroup() %>%
+  pull(n_genes_per_peak) %>%
+  summary()
+```
+
+How many genes per peak? 
+```{r}
+summary(abs(mapped_data_with_anchors$distanceToTSS) > 1000)
+```
+
