@@ -1,0 +1,208 @@
+---
+title: "diffbind_step10_assign_peaks_loops"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(plyranges)
+```
+
+# Goal
+
+Exploration of assignment of in vitro Zic peaks to genes via loops by P4 or P22 cerebellum HiC data
+
+# Read data
+
+Read loop - gene assignments
+```{r}
+mapped_data <- read_tsv("../data_output/diffbind_cutnrun_zic/melyssa_pipeline/mapped_data.txt")
+
+mapped_data <- drop_na(mapped_data, zic_peak)
+colnames(mapped_data) <- paste0("loop_",colnames(mapped_data))
+
+mapped_data <- mapped_data %>%
+  separate(loop_zic_peak,sep = ":",into = c("seqnames","startend")) %>%
+  separate(startend, sep = "-", into = c("start", "end"))
+
+mapped_data$start <- as.numeric(mapped_data$start) + 1
+mapped_data$end <- as.numeric(mapped_data$end)
+
+```
+
+Read diff peak data
+```{r}
+peaks_all <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_all_annotation.Rds")
+
+peaks_all_mapped <- as.data.frame(peaks_all@anno)
+
+```
+
+Join tables
+```{r}
+peaks_all_mapped <- left_join(peaks_all_mapped, mapped_data, by = c("seqnames", "start", "end"))
+peaks_all_mapped <- peaks_all_mapped %>%
+  distinct()
+
+```
+
+```{r}
+
+```
+
+# Assignment P4
+```{r}
+peaks_all_mapped %>%
+  filter(str_detect(loop_id,"young")) %>%
+  mutate(
+         is_diff = case_when(
+           padj < 0.05 & log2FoldChange > 0 ~ "DIV7",
+           padj < 0.05 & log2FoldChange < 0 ~ "DIV1",
+           is.na(padj) ~ "NA",
+           TRUE ~ "ns",
+         ),
+         is_diff = fct_relevel(is_diff, "DIV1","ns","DIV7")) %>%
+  filter(is_diff != "NA") %>%
+  select(seqnames, start, end, is_diff) %>%
+  distinct() %>%
+  group_by(is_diff) %>%
+  summarise(npeaks = n()) %>%
+  ggplot(aes(x = is_diff, y =npeaks, fill = is_diff, label = npeaks)) +
+  geom_col() +
+  scale_fill_manual(values = c("ns" = "lightgray","DIV7" = "red","DIV1"="blue"))+
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  geom_text(nudge_y = 200)
+  
+```
+
+
+
+# Assignment P22
+```{r}
+peaks_all_mapped %>%
+  filter(str_detect(loop_id,"adult")) %>%
+  mutate(
+         is_diff = case_when(
+           padj < 0.05 & log2FoldChange > 0 ~ "DIV7",
+           padj < 0.05 & log2FoldChange < 0 ~ "DIV1",
+           is.na(padj) ~ "NA",
+           TRUE ~ "ns",
+         ),
+         is_diff = fct_relevel(is_diff, "DIV1","ns","DIV7")) %>%
+  filter(is_diff != "NA") %>%
+  select(seqnames, start, end, is_diff) %>%
+  distinct() %>%
+  group_by(is_diff) %>%
+  summarise(npeaks = n()) %>%
+  ggplot(aes(x = is_diff, y =npeaks, fill = is_diff, label = npeaks)) +
+  geom_col() +
+  scale_fill_manual(values = c("ns" = "lightgray","DIV7" = "red","DIV1"="blue"))+
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  geom_text(nudge_y = 500)
+  
+```
+
+# Zic peaks overlap
+
+# Read Zic
+```{r}
+peaks_all_mapped_div7 <- peaks_all_mapped[replace_na(peaks_all_mapped$padj,1) < 0.05 & replace_na(peaks_all_mapped$log2FoldChange,0) > 0,]
+
+
+peaks_all_mapped_div1 <- peaks_all_mapped[replace_na(peaks_all_mapped$padj ,1) < 0.05 & replace_na(peaks_all_mapped$log2FoldChange,0) < 0,]
+
+
+peaks_all_mapped_div7_adult <- peaks_all_mapped_div7 %>%
+  filter(str_detect(loop_id,"adult")) %>%
+  select(seqnames, start, end) %>%
+  unique() %>%
+  summarise(cts = n()) %>%
+  pull(cts)
+
+peaks_all_mapped_div7_young <- peaks_all_mapped_div7 %>%
+  filter(str_detect(loop_id,"young")) %>%
+  select(seqnames, start, end) %>%
+  unique() %>%
+  summarise(cts = n()) %>%
+  pull(cts)
+
+peaks_all_mapped_div1_adult <- peaks_all_mapped_div1 %>%
+  filter(str_detect(loop_id,"adult")) %>%
+  select(seqnames, start, end) %>%
+  unique() %>%
+  summarise(cts = n()) %>%
+  pull(cts)
+
+peaks_all_mapped_div1_young <- peaks_all_mapped_div1 %>%
+  filter(str_detect(loop_id,"young")) %>%
+  select(seqnames, start, end) %>%
+  unique() %>%
+  summarise(cts = n()) %>%
+  pull(cts)
+
+```
+
+
+```{r}
+all_anno <- as.data.frame(peaks_all@anno)
+all_anno <- drop_na(all_anno,padj)
+all_anno <- drop_na(all_anno,log2FoldChange)
+tot_div7 <- sum(all_anno$padj < 0.05 & all_anno$log2FoldChange > 0)
+tot_div1 <- sum(all_anno$padj < 0.05 & all_anno$log2FoldChange < 0)
+
+```
+
+
+# Get overlaps
+
+```{r}
+
+overlaps_df <- data.frame("intersect" =c(peaks_all_mapped_div7_adult,
+peaks_all_mapped_div1_adult,
+peaks_all_mapped_div7_young,
+peaks_all_mapped_div1_young))
+
+
+overlaps_df$a <- c("peaks_d7", "peaks_d1","peaks_d7","peaks_d1")
+overlaps_df$b <- c("p22","p22","p4","p4")
+
+overlaps_df$totals_a <- c(tot_div7,
+                          tot_div1,
+                          tot_div7,
+                          tot_div1)
+overlaps_df$percentage_a <- overlaps_df$intersect * 100 / overlaps_df$totals_a
+
+
+```
+
+```{r}
+overlaps_df %>%
+  mutate(b = fct_relevel(b,"p4","p22")) %>%
+  ggplot(aes(a,percentage_a, fill = a)) +
+  geom_col() +
+  facet_grid(~b,scales = "free") +
+  scale_fill_manual(values = c("peaks_d1" = "blue",
+                               "peaks_d7" = "red")) +
+  theme_light() +
+  theme(aspect.ratio = 2) +
+  geom_text(aes(label = round(percentage_a)),nudge_y = 1)
+
+```
+Notes:
+
+- I don't understand why there are less assigned loops than overlapping bins?
+- I think it might be due to assignment of nearest gene to bins where those bins don't overlap, but then why would the early ones be less?
+- I think the P4 loops might not be as close to genes and the P22 are.?  
+- Or is it ghe bin size?
+- Other than that, it looks like we get a bit more assignments
+
+```{r}
+mapped_data[mapped_data$loop_id == "adult_loop_207",]
+```
+
