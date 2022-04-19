@@ -32,7 +32,9 @@ zic_loop_map <- read_delim("../data_output/diffbind_cutnrun_zic/melyssa_pipeline
 
 # Wrangle  data ------------------------------------------------------------
 # > wrangling loop data  --------------------------------------------------------
-# reshaping loop anchors
+# reshaping loop anchors:
+# Adding a loop id to every loop, then separate loop anchor pairs to get an object
+# with only one of the anchors
 loop_data_adult = loop_data_adult %>% dplyr::mutate(loop_id = paste0("loop_", 1:n())) 
 
 loops = bind_rows( 
@@ -79,7 +81,7 @@ annot = as.data.frame(annotatePeak(makeGRangesFromDataFrame(df = loops), TxDb = 
   # adding back full list of anchors was not selected as having the closest gene mapping
   full_join(loops %>% dplyr::select(id, anchor_name), by = "id") %>% 
   distinct() %>% 
-  dplyr::filter(anchor_name.x != anchor_name.y)
+  dplyr::filter(anchor_name.x != anchor_name.y) # anchor_name.y is the one mapped to genes
   
 
 ## % overlap with gene
@@ -95,34 +97,27 @@ zic_data = zic_loop_map %>%
   left_join(loops)
 
 
-  
-
-
-
-
 # Combining all data -----------------------------------------------------
 
 mapped_data = annot %>% 
   # adding loop maps
   full_join(zic_data, by = "id",na_matches = "never") %>% 
   distinct() %>%
-  full_join(dnase_data, by = "id", na_matches = "never") %>% 
-  distinct() %>% 
-  full_join(k27ac_data,by = "id", na_matches = "never") %>% 
-  distinct() %>% 
   # removing anchor identifier
   dplyr::select(-starts_with("anchor"), -tx_id) %>% 
   distinct() %>% 
-  # adding bulk RNA data
-  full_join(bulkRNA_DE_data %>% dplyr::rename(gene_name = SYMBOL, gene_baseMean = baseMean, gene_padj = padj, gene_lfc = log2FoldChange), by = "gene_name",  na_matches = "never") %>% 
-  distinct() %>% 
   #formatting
-  dplyr::select(starts_with(c("id","zic", "k27ac", "dnase", "gene", "p7", "p60"))) %>% 
-  relocate(id, zic_peak, k27ac_peak, dnase_peak, gene_name) %>% 
+  dplyr::select(starts_with(c("id","zic", "gene"))) %>% 
+  relocate(id, zic_peak, gene_name) %>% 
   ungroup()
 
- 
+mapped_data_with_anchors = annot %>% 
+  # adding loop maps
+  full_join(zic_data, by = "id",na_matches = "never") %>% 
+  relocate(id, zic_peak, gene_name, anchor_name.y, distanceToTSS) %>% 
+  distinct()
 
+ 
 mapped_data_table = mapped_data %>% 
   dplyr::select(id, zic_peak) %>% 
   distinct() %>% 
@@ -137,35 +132,10 @@ mapped_data_table = mapped_data %>%
   relocate(id, zic_peaks, gene_name) 
 
 
-
 # Output Mapped Peaks -----------------------------------------------------
 
-write_tsv(mapped_data, "../../results/FinalTables/mapped_data.txt")
-write_tsv(mapped_data_table, "../../results/FinalTables/mapped_data_table.txt")
+write_tsv(mapped_data, "../data_output/diffbind_cutnrun_zic/melyssa_pipeline/mapped_data.txt")
+write_tsv(mapped_data_table, "../data_output/diffbind_cutnrun_zic/melyssa_pipeline/mapped_data_table.txt")
 
-# Output peak sets --------------------------------------------------------
-output_peak_set("UP", "UP") %>% 
-  write_tsv("../../results/peak_gene/late_activating/P60_peaks_UpGenes.bed", col_names = F)
-
-output_peak_set("UP", "DOWN") %>% 
-  write_tsv("../../results/peak_gene/late_repressive/P60_peaks_DOWNGenes.bed", col_names = F)
-
-output_peak_set("DOWN", "DOWN") %>% 
-  write_tsv("../../results/peak_gene/early_activating/P7_peaks_DOWNGenes.bed", col_names = F)
-
-output_peak_set("DOWN", "UP") %>% 
-  write_tsv("../../results/peak_gene/early_repressive/P7_peaks_UpGenes.bed", col_names = F)
-
-bind_rows(output_peak_set("UP", "UP"),output_peak_set("DOWN", "DOWN") ) %>%
-  write_tsv("../../results/peak_gene/activating/activating.bed", col_names = F)
-
-bind_rows(output_peak_set("UP", "DOWN"),output_peak_set("DOWN", "UP") ) %>%
-  write_tsv("../../results/peak_gene/repressive/repressive.bed", col_names = F)
-
-output_peak_set("UP", c("UP", "DOWN")) %>% 
-  write_tsv("../../results/peak_gene/late/late.bed", col_names = F)
-
-output_peak_set("DOWN", c("UP", "DOWN")) %>% 
-  write_tsv("../../results/peak_gene/early/early.bed", col_names = F)
 
 
