@@ -194,6 +194,11 @@ Main points:
 - Re-assign enhancer-promoters peaks with Melyssa's pipeline
 
 #2022-04-14
+- Re-assign enhancer-promoters peaks with Melyssa's pipeline
+- Process the new ChIPs
+- Look into the rank rank hypergeometric overlap
+- Re-analyze Chd7/Chd4 rnaseq 
+
 
 
 - Other things that came up:
@@ -202,5 +207,37 @@ Main points:
   - Compare Chd7/4 knockdowns with time changes
   - Look at the peaks that go up both in vivo and in vitro and what they look like in expression.
   
-  
+#2022-04-15
+- Going through:  Re-assign enhancer-promoters peaks with Melyssa's pipeline script
+
+#2022-04-18
+- Check new chip tracks
+
+- Do overlaps with new chip tracks and also with assigned files
+-  how to do rank rank test
+
+- read 1 paper
+
+#2022-04-19
+- Do overlaps plot of enhancers assignments
+- Do RRHOs
+- Explore bowtie2 output:
+- Done - So the issue was PE files as SE
+
+#2022-04-20
+- Run:
+/data/westlab/jes157/data_output/chip/chip_chromatin_pe
+
+- read 2 paper
+
+#2022-04-21
+
+- CHD KO vs Zic KD RNA SEQ comparison
+  - Re-analyze rnaseq for chd7
+  - 
+- Read Chd paper 
+
+#2022-04-22
+- Worked on direct target analyses.
+
 
