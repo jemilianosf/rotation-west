@@ -51,7 +51,7 @@ names(chip_chromatin_peaks) <- str_replace_all(sample_titles[names(chip_chromati
 
 names(chip_chromatin_peaks) <- str_replace_all(names(chip_chromatin_peaks),"-","_")
 
-names(chip_chromatin_peaks) 
+write_tsv(reports_tsv,"../data_output/chip_chromatin/chip_sample_info.tsv")
 ```
 
 ## Overlaps
