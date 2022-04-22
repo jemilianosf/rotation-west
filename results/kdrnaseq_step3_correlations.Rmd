@@ -223,8 +223,9 @@ knockdown_genes_chd7_to_plot_zic %>%
   geom_text(data = knockdown_genes_chd7_to_plot_zic, mapping = aes(label = chd7_GeneID))
 
 knockdown_genes_chd7 %>%
-  filter(str_detect(chd7_GeneID,"Zic"))
+  filter(str_detect(chd7_GeneID,"Zic")) 
 ```
+
 
 
 Notes:
