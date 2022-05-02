@@ -34,6 +34,7 @@ mapped_data$end <- as.numeric(mapped_data$end)
 
 ```
 
+
 Read diff peak data
 ```{r}
 peaks_all <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_all_annotation.Rds")
@@ -51,7 +52,8 @@ peaks_all_mapped <- peaks_all_mapped %>%
 ```
 
 ```{r}
-
+peaks_all_mapped %>%
+  filter(is.na(loop_id)) 
 ```
 
 # Assignment P4
@@ -83,6 +85,22 @@ peaks_all_mapped %>%
 
 
 # Assignment P22
+```{r}
+peaks_all_mapped %>%
+  filter(str_detect(loop_id,"adult")) %>%
+  mutate(
+         is_diff = case_when(
+           padj < 0.05 & log2FoldChange > 0 ~ "DIV7",
+           padj < 0.05 & log2FoldChange < 0 ~ "DIV1",
+           is.na(padj) ~ "NA",
+           TRUE ~ "ns",
+         ),
+         is_diff = fct_relevel(is_diff, "DIV1","ns","DIV7")) %>%
+  pull(is_diff) %>%
+  table()
+```
+
+
 ```{r}
 peaks_all_mapped %>%
   filter(str_detect(loop_id,"adult")) %>%
@@ -187,13 +205,15 @@ overlaps_df %>%
   ggplot(aes(a,percentage_a, fill = a)) +
   geom_col() +
   facet_grid(~b,scales = "free") +
-  scale_fill_manual(values = c("peaks_d1" = "blue",
-                               "peaks_d7" = "red")) +
+  scale_fill_manual(values = c("peaks_d1" = "#1E88E5",
+                               "peaks_d7" = "#D81B60")) +
   theme_light() +
   theme(aspect.ratio = 2) +
-  geom_text(aes(label = round(percentage_a)),nudge_y = 1)
+  geom_text(aes(label = paste0(round(intersect)," (",round(percentage_a),"%) ")), nudge_y = 1) 
 
 ```
+
+
 Notes:
 
 - I don't understand why there are less assigned loops than overlapping bins?
@@ -204,5 +224,71 @@ Notes:
 
 ```{r}
 mapped_data[mapped_data$loop_id == "adult_loop_207",]
+```
+
+
+# Basic looping statistics
+```{r}
+p22_loops <- read_tsv("../data_input/bedpe/merged_loops.bedpe")
+p4_loops <- readxl::read_excel("../data_input/bedpe/GSE164360_Hi-C_Summary.xlsx")
+p22_loops <- p22_loops[-1,]
+```
+
+```{r}
+nrow(unique(rbind(as.matrix(p4_loops[,1:3]),
+as.matrix(p4_loops[,4:6]))))
+
+```
+
+
+```{r}
+
+nrow(unique(rbind(as.matrix(p22_loops[,1:3]),
+as.matrix(p22_loops[,4:6]))))
+
+```
+
+```{r}
+div7_peaks <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_up_annotation.Rds")
+div1_peaks <- readRDS(file = "../data_output/diffbind_cutnrun_zic/peaks_7v1_down_annotation.Rds")
+
+sum(str_detect(div7_peaks@anno$annotation,"Promoter"))
+sum(str_detect(div1_peaks@anno$annotation,"Promoter"))
+
+
+length(unique(div7_peaks@anno[str_detect(div7_peaks@anno$annotation,"Promoter")]$SYMBOL))
+
+length(unique(div1_peaks@anno[str_detect(div1_peaks@anno$annotation,"Promoter")]$SYMBOL))
+
+peaks_all@anno %>%
+  as.data.frame() %>%
+  drop_na(padj) %>%
+  filter(padj > 0.05) %>%
+  filter(str_detect(annotation, "Promoter")) %>%
+  select(SYMBOL) %>%
+  unique()
+
+```
+
+```{r}
+mapped_data <- read_tsv("../data_output/diffbind_cutnrun_zic/melyssa_pipeline/mapped_data.txt")
+
+colnames(mapped_data) <- paste0("loop_",colnames(mapped_data))
+
+peaks_all_anno <- as.data.frame(peaks_all@anno)
+peaks_all_anno <- peaks_all_anno %>%
+  drop_na(padj)
+
+
+loops <- left_join(as.data.frame(peaks_all@anno), mapped_data)
+```
+```{r}
+peaks_all_mapped %>%
+  drop_na(loop_id) %>%
+  drop_na(padj) %>%
+  drop_na(loop_gene_name) %>%
+  filter(padj > 0.05) %>%
+  select(seqnames, start, end) %>%
+  unique()
 ```
 
