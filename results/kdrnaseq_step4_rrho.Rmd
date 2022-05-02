@@ -33,6 +33,10 @@ knockdown_genes_chd7 <- readxl::read_excel("../data_input/rnaseq/GSE164360_RNA-s
 ```
 
 
+```{r}
+knockdown_genes_chd4 <- read_tsv("../data_input/rnaseq/GSE83253_Chd4_cko_vs_wt.txt")
+
+```
 
 
 Change column names before the join
@@ -41,6 +45,7 @@ Change column names before the join
 colnames(knockdown_genes_zic1) <- paste0("zic1_",colnames(knockdown_genes_zic1))
 colnames(knockdown_genes_zic2) <- paste0("zic2_",colnames(knockdown_genes_zic2))
 colnames(knockdown_genes_chd7) <- paste0("chd7_",colnames(knockdown_genes_chd7))
+colnames(knockdown_genes_chd4) <- paste0("chd4_",colnames(knockdown_genes_chd4))
 
 ```
 
@@ -61,9 +66,78 @@ knockdown_genes_zic2_chd7 <- knockdown_genes_zic2_chd7[!duplicated(knockdown_gen
 ```
 
 
-# Prepare data for comparisons
+
 
 ```{r}
+knockdown_genes_zic1_zic2 <- inner_join(knockdown_genes_zic1,
+                                       knockdown_genes_zic2, 
+                                       by = c("zic1_gene_names" = "zic2_gene_names"), 
+                                       na_matches = "never")
+
+```
+
+```{r}
+knockdown_genes_zic1_chd4 <- inner_join(knockdown_genes_zic1,
+                                       knockdown_genes_chd4, 
+                                       by = c("zic1_gene_names" = "chd4_external_gene_name"), 
+                                       na_matches = "never")
+knockdown_genes_zic1_chd4 <- knockdown_genes_zic1_chd4[!duplicated(knockdown_genes_zic1_chd4$zic1_gene_names) | duplicated(knockdown_genes_zic1_chd4$zic1_gene_names,fromLast = TRUE),]
+
+```
+
+
+
+# Prepare data for comparisons
+
+chd4
+```{r}
+signal_zic1_vs_chd4 <- knockdown_genes_zic1_chd4 %>% 
+  select(contains("adj"),contains("log2"),contains("logFC"),zic1_gene_names) %>%
+  distinct() %>%
+  drop_na() %>%
+  mutate(sgnlogpadj = log10(zic1_padj)* sign(as.numeric(zic1_log2FoldChange))) %>% 
+  dplyr::rename( SYMBOL = zic1_gene_names) %>% 
+  dplyr::select(SYMBOL, sgnlogpadj) %>% 
+  drop_na()
+
+signal_chd4_vs_zic1 <- knockdown_genes_zic1_chd4 %>% 
+  select(contains("adj"),contains("log2"),contains("FDR"),contains("logFC"),zic1_gene_names) %>%
+  distinct() %>%
+  drop_na() %>%
+  mutate(sgnlogpadj = log10(chd4_FDR)* sign(as.numeric(chd4_logFC))) %>% 
+  dplyr::rename( SYMBOL = zic1_gene_names) %>% 
+  dplyr::select(SYMBOL, sgnlogpadj) %>% 
+  drop_na()
+
+
+```
+zic1 vs zic2
+```{r}
+signal_zic1_vs_zic2 <- knockdown_genes_zic1_zic2 %>% 
+  select(contains("adj"),contains("log2"),zic1_gene_names) %>%
+  distinct() %>%
+  drop_na() %>%
+  mutate(sgnlogpadj = log10(zic1_padj)* sign(as.numeric(zic1_log2FoldChange))) %>% 
+  dplyr::rename( SYMBOL = zic1_gene_names) %>% 
+  dplyr::select(SYMBOL, sgnlogpadj) %>% 
+  drop_na()
+
+signal_zic2_vs_zic1 <- knockdown_genes_zic1_zic2 %>% 
+  select(contains("adj"),contains("log2"),zic1_gene_names) %>%
+  distinct() %>%
+  drop_na() %>%
+  mutate(sgnlogpadj = log10(zic2_padj)* sign(as.numeric(zic2_log2FoldChange))) %>% 
+  dplyr::rename( SYMBOL = zic1_gene_names) %>% 
+  dplyr::select(SYMBOL, sgnlogpadj) %>% 
+  drop_na()
+
+
+```
+
+chd7 
+```{r}
+
+
 signal_zic1_vs_chd7 <- knockdown_genes_zic1_chd7 %>% 
   select(contains("adj"),contains("log2"),zic1_gene_names) %>%
   distinct() %>%
@@ -122,6 +196,57 @@ signal_chd7_vs_zic2_neg <- knockdown_genes_zic2_chd7 %>%
 ```
 
 # RRHO
+
+```{r}
+
+object_chd4 <- RRHO(as.data.frame(signal_zic1_vs_chd4),
+                as.data.frame(signal_chd4_vs_zic1),
+                BY=TRUE,
+                stepsize = 100,
+                alternative='two.sided',
+                log10.ind = TRUE,
+                plot = TRUE,
+                outputdir = "../data_output/rnaseq_zic/rrho/",
+                labels = c("Zic1_KD_Ctrl","Chd4_cKO_Ctrl"))
+
+```
+
+zic1 vs zic2
+```{r}
+object_zics <- RRHO(as.data.frame(signal_zic1_vs_zic2),
+                as.data.frame(signal_zic2_vs_zic1),
+                BY=TRUE,
+                stepsize = 100,
+                alternative='two.sided',
+                log10.ind = TRUE,
+                plot = TRUE,
+                outputdir = "../data_output/rnaseq_zic/rrho/",
+                labels = c("Zic1_KD_Ctrl","Zic2_KD_Ctrl"))
+
+```
+
+```{r}
+
+max_zics <- max(object_zics$hypermat)
+zics_vec <- as.vector(object_zics$hypermat)
+zics_vec <- zics_vec[!is.infinite(zics_vec)]
+max_zics <- max(zics_vec)
+object_zics$hypermat[is.infinite(object_zics$hypermat)] <- max_zics
+
+
+
+ComplexHeatmap::Heatmap(object_zics$hypermat[rev(1:dim(object_zics$hypermat)[2]),],cluster_rows = FALSE,cluster_columns = FALSE, col =RColorBrewer::brewer.pal(5, "OrRd") )
+
+
+```
+
+```{r}
+library(viridis)
+
+
+ComplexHeatmap::Heatmap(t(object_zics$hypermat)[rev(1:dim(object_zics$hypermat)[2]),],cluster_rows = FALSE,cluster_columns = FALSE, col =viridis::turbo(n = 10) )
+
+```
 
 ```{r}
 
