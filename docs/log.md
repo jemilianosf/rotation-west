@@ -240,4 +240,23 @@ Main points:
 #2022-04-22
 - Worked on direct target analyses.
 
+- To do:
+- ChIP overlaps - 
+- Go over ppt
+
+- Look into Chd4 rnaseq cko ? - add time info for this
+
+#2022-04-25
+- Presentation
+#2022-04-26
+- Presentation / new analyses Anne suggested
+#2022-04-27
+- Worked on presentation
+- Start analysis of new chip chromatin proteins
+
+#2022-04-27
+- New chip chromatin analyses
+- 
+
+
 
