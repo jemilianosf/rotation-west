@@ -72,16 +72,21 @@ diff_peaks_overlaps_by_element %>%
     ungroup() %>%
     mutate(name = fct_relevel(name,"setdiff1","intersection1"),
            name = fct_recode(name, "overlap" = "intersection1", "no overlap" = "setdiff1"),
-           set2 = fct_relevel(set2,"P7","P60")) %>%
-    ggplot(aes(y = percentage, x = set2, fill = name)) +
+           set2 = fct_relevel(set2,"P7","P60"),
+           set1 = fct_recode(set1, "DIV1 peaks"="peaks_1v7","DIV7 peaks"="peaks_7v1")) %>%
+  filter(name == "overlap") %>%
+    ggplot(aes(y = percentage, x = set2, fill = set2)) +
     geom_col(width = 0.5) +
     ylab(NULL) +
     ylab("Percentage") +
   xlab(NULL) +
-    scale_fill_viridis_d(begin = 0.2,end = 0.8) +
+    scale_fill_manual(values = c("P7"="#1E88E5","P60"="#D81B60")) +
     theme_light() +
-  theme(aspect.ratio = 1.5,legend.title = element_blank()) +
-  facet_grid(~set1)
+  theme(aspect.ratio = 2,legend.title = element_blank()) +
+  facet_grid(~set1) +
+  ylim(c(0,100)) +
+  geom_text(aes(label = paste0(round(percentage),"%")),nudge_y = 2)
+
 ```
 
 Get list of peaks that overlap
