@@ -57,6 +57,11 @@ summary(zic_diff_peaks$zic_peak %in% zic_invitro$zic_peak)
 zic_diff_peaks <- zic_diff_peaks[zic_diff_peaks$zic_peak %in% zic_invitro$zic_peak,]
 ```
 
+## Zic binding vs expression in vitro 
+```{r}
+zic_diff_peaks
+```
+
 
 ## Overlaps 
 
@@ -130,6 +135,86 @@ knockdown_genes_zic2_npeaks_dir <- knockdown_genes_zic2_npeaks_dir %>%
 
 ```
 
+```{r}
+knockdown_genes_zic1_npeaks %>%
+  ggplot(aes(npeaks, zic1_log2FoldChange)) +
+  geom_point(color = "gray", alpha = 0.7, size = 1) +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("Number of mapped in vivo peaks") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)")
+
+```
+
+```{r}
+knockdown_genes_zic1_npeaks %>%
+  drop_na(contains("padj")) %>%
+  ggplot(aes( P60_log2FoldChange, zic1_log2FoldChange,
+             color = zic1_padj < 0.05 & P60_padj < 0.05)) +
+  geom_point( size = 1 , alpha = 0.5) +
+  scale_color_manual(values = c("FALSE"="gray",
+                                "TRUE"="blue")) +
+  theme_minimal() +
+  theme(aspect.ratio = 1, legend.position = "none") +
+  xlab("RNAseq log2(P60 / P7)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)") 
+
+
+```
+```{r}
+knockdown_genes_zic1_npeaks %>%
+  drop_na(contains("padj")) %>%
+  filter(zic1_padj < 0.05 & P60_padj < 0.05) %>%
+  ggplot(aes( P60_log2FoldChange, zic1_log2FoldChange, label = zic1_gene_names)) +
+  geom_point( alpha = 0.5, color = "blue", size = 1) +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("RNAseq log2(P60 / P7)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)") 
+
+```
+```{r}
+knockdown_genes_zic1_npeaks %>%
+  drop_na(contains("padj")) %>%
+  filter(zic1_padj < 0.05 & P60_padj < 0.05) %>%
+  ggplot(aes( P60_log2FoldChange, zic1_log2FoldChange,size = npeaks, label = zic1_gene_names)) +
+  geom_point( alpha = 0.2, color = "blue") +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("RNAseq log2(P60 / P7)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)") 
+
+```
+
+```{r}
+knockdown_genes_zic1_npeaks_dir %>%
+  drop_na(contains("padj")) %>%
+  filter(zic1_padj < 0.05 & P60_padj < 0.05) %>%
+  filter(zic_sig %in% c("DOWN","UP")) %>%
+  ggplot(aes( P60_log2FoldChange, zic1_log2FoldChange,
+              size = npeaks, label = zic1_gene_names, color = zic_sig)) +
+  geom_point(alpha = 0.6 ) +
+  theme_minimal() +
+  theme(aspect.ratio = 1)+
+  scale_color_manual(values = c("UP"="#D81B60","DOWN"="#1E88E5")) +
+  xlab("RNAseq log2(P60 / P7)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)") 
+
+```
+
+
+```{r}
+knockdown_genes_zic1_npeaks %>%
+  drop_na(contains("padj")) %>%
+  filter(zic1_padj < 0.05 & P60_padj < 0.05) %>%
+  ggplot(aes( P60_log2FoldChange, zic1_log2FoldChange,size = npeaks, label = zic1_gene_names)) +
+  geom_point( alpha = 0.2, color = "blue") +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("RNAseq log2(P60 / P7)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)") 
+
+```
 
 ```{r}
 knockdown_genes_zic1_npeaks %>%
@@ -269,6 +354,16 @@ knockdown_genes_zic2_npeaks %>%
   geom_text(nudge_x = 1,data = knockdown_genes_zic2_npeaks[knockdown_genes_zic2_npeaks$zic2_gene_names %in% c("Chd7","Chd4"),], mapping = aes(label = zic2_gene_names), color = "red")+
   theme_minimal() +
   theme(aspect.ratio = 1) 
+
+```
+```{r}
+knockdown_genes_zic1_npeaks %>%
+  ggplot(aes(npeaks, zic1_log2FoldChange)) +
+  geom_point(alpha = 0.7, size = 1) +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("Number of mapped in vivo peaks") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)")
 
 ```
 
@@ -642,6 +737,87 @@ knockdown_genes_zic1_npeaks_dir %>%
   theme(aspect.ratio = 2) +
   facet_wrap(~ experiment, scales = "free_x")
 ```
+
+```{r}
+knockdown_genes_zic1_npeaks_dir %>%
+  left_join(peaks_per_gene_invitro_dir, by  = c("zic1_gene_names" = "gene_name_invitro",
+                                                "zic_sig"="zic_sig_invitro")) %>%
+  drop_na(contains("padj")) %>%
+  filter(zic1_padj < 0.05 & P60_padj < 0.05) %>%
+  mutate(diff_category = case_when(
+    zic1_log2FoldChange < 0 & P60_log2FoldChange > 0  ~ "dependent_p60",
+    zic1_log2FoldChange > 0 & P60_log2FoldChange < 0  ~ "dependent_p7",
+    zic1_log2FoldChange > 0 & P60_log2FoldChange > 0  ~ "independent_p60",
+    zic1_log2FoldChange < 0 & P60_log2FoldChange < 0  ~ "independent_p7",
+  )) %>%
+  filter(diff_category == "dependent_p60") %>%
+  group_by(zic1_gene_names) %>%
+  mutate(totals_npeaks = sum(npeaks)) %>%
+  ungroup() %>%
+  filter(totals_npeaks > 1) %>%
+  mutate(zic1_gene_names = fct_reorder(zic1_gene_names, totals_npeaks)) %>%
+  select(zic1_gene_names, zic_sig, npeaks,npeaks_invitro) %>%
+  pivot_longer(cols = contains("npeaks"),values_to = "npeaks", names_to = "experiment") %>% 
+  ggplot(aes(npeaks, zic1_gene_names, fill = zic_sig)) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = c("UP"="#D81B60","DOWN"="#1E88E5","N.S." ="gray"))+
+  theme_classic() +
+  theme(aspect.ratio = 2) +
+  facet_wrap(~ experiment, scales = "free_x")
+
+```
+
+```{r}
+putative_p60_direct_genes <- knockdown_genes_zic1_npeaks_dir %>%
+  left_join(peaks_per_gene_invitro_dir, by  = c("zic1_gene_names" = "gene_name_invitro",
+                                                "zic_sig"="zic_sig_invitro")) %>%
+  drop_na(contains("padj")) %>%
+  filter(zic1_padj < 0.05 & P60_padj < 0.05) %>%
+  mutate(diff_category = case_when(
+    zic1_log2FoldChange < 0 & P60_log2FoldChange > 0  ~ "dependent_p60",
+    zic1_log2FoldChange > 0 & P60_log2FoldChange < 0  ~ "dependent_p7",
+    zic1_log2FoldChange > 0 & P60_log2FoldChange > 0  ~ "independent_p60",
+    zic1_log2FoldChange < 0 & P60_log2FoldChange < 0  ~ "independent_p7",
+  )) %>%
+  filter(diff_category == "dependent_p60") %>%
+  group_by(zic1_gene_names) %>%
+  mutate(totals_npeaks = sum(npeaks)) %>%
+  ungroup() %>%
+  filter(totals_npeaks > 1) %>%
+  mutate(zic1_gene_names = fct_reorder(zic1_gene_names, totals_npeaks)) %>%
+  select(zic1_gene_names, zic_sig, npeaks,npeaks_invitro) %>%
+  pivot_longer(cols = contains("npeaks"),values_to = "npeaks", names_to = "experiment") %>% 
+  pull(zic1_gene_names) %>%
+  levels()
+
+writeLines(text = putative_p60_direct_genes,con = "../data_output/diffbind_cutnrun_zic/putative_p60_direct_genes.txt")
+
+putative_p7_direct_genes <- knockdown_genes_zic1_npeaks_dir %>%
+  left_join(peaks_per_gene_invitro_dir, by  = c("zic1_gene_names" = "gene_name_invitro",
+                                                "zic_sig"="zic_sig_invitro")) %>%
+  drop_na(contains("padj")) %>%
+  filter(zic1_padj < 0.05 & P60_padj < 0.05) %>%
+  mutate(diff_category = case_when(
+    zic1_log2FoldChange < 0 & P60_log2FoldChange > 0  ~ "dependent_p60",
+    zic1_log2FoldChange > 0 & P60_log2FoldChange < 0  ~ "dependent_p7",
+    zic1_log2FoldChange > 0 & P60_log2FoldChange > 0  ~ "independent_p60",
+    zic1_log2FoldChange < 0 & P60_log2FoldChange < 0  ~ "independent_p7",
+  )) %>%
+  filter(diff_category == "dependent_p7") %>%
+  group_by(zic1_gene_names) %>%
+  mutate(totals_npeaks = sum(npeaks)) %>%
+  ungroup() %>%
+  filter(totals_npeaks > 1) %>%
+  mutate(zic1_gene_names = fct_reorder(zic1_gene_names, totals_npeaks)) %>%
+  select(zic1_gene_names, zic_sig, npeaks,npeaks_invitro) %>%
+  pivot_longer(cols = contains("npeaks"),values_to = "npeaks", names_to = "experiment") %>% 
+  pull(zic1_gene_names) %>%
+  levels()
+
+writeLines(text = putative_p7_direct_genes,con = "../data_output/diffbind_cutnrun_zic/putative_p7_direct_genes.txt")
+
+```
+
 
 
 ```{r}
