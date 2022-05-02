@@ -37,12 +37,8 @@ chip_chromatin_peaks <- map(chip_chromatin_peaks_full, import)
 
 Change names
 ```{r}
-reports_tsv <- map(list.files("../data_output/ena_reports/", full.names = TRUE), read_tsv)
+reports_tsv <- read_tsv("../execution_scripts/chip_chromatin_sample_info.tsv")
 
-reports_tsv <- do.call(rbind, map(reports_tsv, function(x) {
-  x <- x[x$run_accession %in% names(chip_chromatin_peaks),]
-  return(x)
-}))
 sample_titles <- reports_tsv$sample_title
 names(sample_titles) <- reports_tsv$run_accession
 
@@ -136,7 +132,89 @@ plot_peaks_overlaps <- function(peaks_overlaps){
 ```{r}
 imap(peaks_overlaps_list, ~ plot_peaks_overlaps(.x) + ggtitle(.y))
 ```
+Plot everything
+```{r}
 
+chip_chromatin_peaks_olaps <- map(chip_chromatin_peaks, get_peaks_overlaps,chip_macs_granges = chip_macs_granges )
+```
+
+```{r}
+
+imap(chip_chromatin_peaks_olaps, ~ plot_peaks_overlaps(.x) + ggtitle(.y))
+
+```
+
+# Add anchor information
+```{r}
+mapped_data <- read_tsv("../data_input/melyssa_zic_data/mapped_data.txt")
+chip_macs_granges
+
+
+```
+```{r}
+mapped_data_in_anchors <- mapped_data %>% 
+  dplyr::filter(!is.na(id)) %>% 
+  dplyr::filter(!is.na(zic_peak)) %>%
+  # extract chr, start, end
+  dplyr::mutate(chr = str_extract(zic_peak,"[^\\:]+"), 
+  start = str_extract(zic_peak, "(?<=:).+(?=-)") , 
+  end = str_extract(zic_peak, "\\b\\w+$")) %>%
+  select(chr, start, end, zic_sig, gene_sig) %>%
+  distinct()
+  
+```
+
+```{r}
+mapped_data_in_anchors$start <- as.numeric(mapped_data_in_anchors$start)
+mapped_data_in_anchors$end <- as.numeric(mapped_data_in_anchors$end)
+
+mapped_data_in_anchors_gr <- makeGRangesFromDataFrame(mapped_data_in_anchors,
+                         keep.extra.columns = TRUE)
+
+mapped_data_in_anchors_gr_zic_sig_list <- split(mapped_data_in_anchors_gr,mapped_data_in_anchors_gr$zic_sig)
+
+mapped_data_in_anchors_gr_zic_gene_sig_list <- split(mapped_data_in_anchors_gr,paste0(mapped_data_in_anchors_gr$zic_sig,mapped_data_in_anchors_gr$gene_sig ))
+
+mapped_data_in_anchors_gr_zic_gene_sig_list_anti <- mapped_data_in_anchors_gr_zic_gene_sig_list[c("DOWNUP","N.S.N.S.","UPDOWN")]
+
+mapped_data_in_anchors_gr_zic_gene_sig_list <- mapped_data_in_anchors_gr_zic_gene_sig_list[c("DOWNDOWN","N.S.N.S.","UPUP")]
+
+```
+
+```{r}
+names(mapped_data_in_anchors_gr_zic_sig_list) <- c("P7","NS","P60")
+names(mapped_data_in_anchors_gr_zic_gene_sig_list) <- c("P7","NS","P60")
+
+```
+
+
+
+```{r}
+
+chip_chromatin_peaks_olaps_anchors <- map(chip_chromatin_peaks, get_peaks_overlaps,chip_macs_granges = mapped_data_in_anchors_gr_zic_sig_list)
+
+
+imap(chip_chromatin_peaks_olaps_anchors, ~ plot_peaks_overlaps(.x) + ggtitle(.y))
+
+```
+
+```{r}
+chip_chromatin_peaks_olaps_anchors <- map(chip_chromatin_peaks, get_peaks_overlaps,chip_macs_granges = mapped_data_in_anchors_gr_zic_gene_sig_list)
+
+
+imap(chip_chromatin_peaks_olaps_anchors, ~ plot_peaks_overlaps(.x) + ggtitle(.y))
+
+```
+
+```{r}
+names(mapped_data_in_anchors_gr_zic_gene_sig_list_anti) <- c("P7","NS","P60")
+
+chip_chromatin_peaks_olaps_anchors <- map(chip_chromatin_peaks, get_peaks_overlaps,chip_macs_granges = mapped_data_in_anchors_gr_zic_gene_sig_list_anti)
+
+
+imap(chip_chromatin_peaks_olaps_anchors, ~ plot_peaks_overlaps(.x) + ggtitle(.y))
+
+```
 Notes:
 - At least a subset of late Zic binding is concomitant with Chd4.
 - Many late Zic peaks also overlap early Chd7, 
