@@ -70,6 +70,26 @@ plotMA(res_7v3, main = "DIV7-DIV3", alpha = 0.05, ylim = c(-3,3))
 
 ```
 
+```{r}
+plotMA(res_7v1, main = "DIV7-DIV1", alpha = 0.05, ylim = c(-3,3))
+
+```
+```{r}
+table(res_7v1$padj > 0.05)
+
+```
+
+```{r}
+  res_7v1 %>%
+    as_tibble() %>%
+    ggplot(aes(baseMean, log2FoldChange)) +
+    geom_point(size = 0.5, alpha = 0.5,aes(color = padj < 0.05 )) +
+    scale_color_manual(values = c("FALSE" = "gray","TRUE"="blue")) +
+    theme_classic() +
+    theme(aspect.ratio = 1) +
+  scale_x_log10() 
+```
+
 ## Volcano
 
 ```{r}
