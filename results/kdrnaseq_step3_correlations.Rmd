@@ -38,6 +38,7 @@ colnames(knockdown_genes_chd7) <- paste0("chd7_",colnames(knockdown_genes_chd7))
 
 ```
 
+Join Zic and Chd7 datasets
 
 ```{r}
 knockdown_genes_zic1_chd7 <- inner_join(knockdown_genes_zic1,
@@ -50,7 +51,7 @@ knockdown_genes_zic2_chd7 <- inner_join(knockdown_genes_zic2,
 ```
 
 
-
+Plot correlation
 
 ```{r}
 knockdown_genes_zic1_chd7 %>%
@@ -225,7 +226,160 @@ knockdown_genes_chd7_to_plot_zic %>%
 knockdown_genes_chd7 %>%
   filter(str_detect(chd7_GeneID,"Zic")) 
 ```
+## Correlation of Zic peaks and rnaseq b
+```{r}
+library(ChIPseeker)
+zic_diff_peaks <- readRDS("../data_output/diffbind_cutnrun_zic/peaks_7v1_all_annotation.Rds")
 
+```
+
+```{r}
+zic_diff_peaks <- zic_diff_peaks@anno
+
+zic_diff_peaks <- zic_diff_peaks[str_detect(zic_diff_peaks$annotation,"Promoter"),]
+
+zic_diff_peaks <- zic_diff_peaks[!is.na(zic_diff_peaks$padj),]
+
+zic_diff_peaks <- as.data.frame(zic_diff_peaks)
+
+zic_diff_peaks <- zic_diff_peaks %>%
+  mutate(peak_id = paste0(seqnames,":",start, "-",end))
+```
+
+```{r}
+zic1_kd_peaks <- inner_join(zic_diff_peaks, knockdown_genes_zic1, by = c("SYMBOL"="zic1_gene_names")) %>%
+  select(SYMBOL, zic1_log2FoldChange, zic1_padj, log2FoldChange, padj, peak_id)
+
+zic2_kd_peaks <- inner_join(zic_diff_peaks, knockdown_genes_zic2, by = c("SYMBOL"="zic2_gene_names")) %>%
+  select(SYMBOL, zic2_log2FoldChange, zic2_padj, log2FoldChange, padj, peak_id)
+
+
+zic1_kd_peaks <- zic1_kd_peaks %>%
+  drop_na(zic1_padj)
+
+zic1_kd_peaks_zic_sig <- zic1_kd_peaks %>%
+  filter(zic1_padj < 0.05) 
+
+zic1_kd_peaks_zic_sig <- zic1_kd_peaks_zic_sig %>%
+  group_by( SYMBOL, zic1_log2FoldChange ) %>%
+  summarise(log2FoldChange = mean(log2FoldChange)) 
+
+
+zic2_kd_peaks <- zic2_kd_peaks %>%
+  drop_na(zic2_padj)
+
+zic2_kd_peaks_zic_sig <- zic2_kd_peaks %>%
+  filter(zic2_padj < 0.05) 
+
+zic2_kd_peaks_zic_sig <- zic2_kd_peaks_zic_sig %>%
+  group_by( SYMBOL, zic2_log2FoldChange ) %>%
+  summarise(log2FoldChange = mean(log2FoldChange)) 
+
+```
+
+
+```{r}
+zic1_kd_peaks_zic_sig %>%
+  ggplot(aes( y = zic1_log2FoldChange, x = log2FoldChange)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_smooth(method = "lm", se = FALSE , color = "black") +
+  annotate(geom = "text", label = round(cor(zic1_kd_peaks_zic_sig$log2FoldChange,zic1_kd_peaks_zic_sig$zic1_log2FoldChange),3),x = -0.8,y=-2.5) +
+  ylab("Zic1 RNA-seq log2FC(KD/Ctrl)") +
+  xlab("Zic CUT&RUN log2FC(DIV7/DIV1)") +
+  theme_classic() +
+  theme(aspect.ratio = 1) +
+  scale_color_manual(values = c("FALSE" ="gray","TRUE" = "blue"))
+```
+```{r}
+zic2_kd_peaks_zic_sig %>%
+  ggplot(aes( y = zic2_log2FoldChange, x = log2FoldChange)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_smooth(method = "lm", se = FALSE , color = "black") +
+  annotate(geom = "text", label = round(cor(zic2_kd_peaks_zic_sig$log2FoldChange,zic2_kd_peaks_zic_sig$zic2_log2FoldChange),3),x = -0.8,y=-2.5) +
+  ylab("Zic2 RNA-seq log2FC(KD/Ctrl)") +
+  xlab("Zic CUT&RUN log2FC(DIV7/DIV1)") +
+  theme_classic() +
+  theme(aspect.ratio = 1) +
+  scale_color_manual(values = c("FALSE" ="gray","TRUE" = "blue"))
+
+```
+
+```{r}
+zic_invitro <- read_tsv("../data_output/diffbind_cutnrun_zic/melyssa_pipeline/mapped_data.txt")
+
+```
+
+```{r}
+zic_diff_peaks <- zic_diff_peaks %>%
+  mutate(peak_id = paste0(seqnames,":",start - 1, "-",end))
+
+zic_diff_peaks_ep <- inner_join(zic_diff_peaks,zic_invitro, by = c("peak_id" = "zic_peak"))
+
+zic_diff_peaks_ep <- zic_diff_peaks_ep %>%
+  select(gene_name, peak_id, log2FoldChange, padj)
+
+
+zic1_kd_peaks_ep <- inner_join(zic_diff_peaks_ep, knockdown_genes_zic1, by = c("gene_name"="zic1_gene_names")) %>%
+  select(gene_name, zic1_log2FoldChange, zic1_padj, log2FoldChange, padj, peak_id)
+
+zic1_kd_peaks_ep <- zic1_kd_peaks_ep %>%
+  drop_na(zic1_padj)
+
+zic1_kd_peaks_ep_sig <- zic1_kd_peaks_ep %>%
+  filter(zic1_padj < 0.05) 
+
+zic1_kd_peaks_ep_sig <- zic1_kd_peaks_ep_sig %>%
+  group_by( gene_name, zic1_log2FoldChange ) %>%
+  summarise(log2FoldChange = mean(log2FoldChange)) 
+
+zic2_kd_peaks_ep <- inner_join(zic_diff_peaks_ep, knockdown_genes_zic2, by = c("gene_name"="zic2_gene_names")) %>%
+  select(gene_name, zic2_log2FoldChange, zic2_padj, log2FoldChange, padj, peak_id)
+
+zic2_kd_peaks_ep <- zic2_kd_peaks_ep %>%
+  drop_na(zic2_padj)
+
+zic2_kd_peaks_ep_sig <- zic2_kd_peaks_ep %>%
+  filter(zic2_padj < 0.05) 
+
+zic2_kd_peaks_ep_sig <- zic2_kd_peaks_ep_sig %>%
+  group_by( gene_name, zic2_log2FoldChange ) %>%
+  summarise(log2FoldChange = mean(log2FoldChange)) 
+```
+
+
+
+```{r}
+zic1_kd_peaks_ep_sig %>%
+  ggplot(aes( y = zic1_log2FoldChange, x = log2FoldChange)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_smooth(method = "lm", se = FALSE , color = "black") +
+  annotate(geom = "text", label = round(cor(zic1_kd_peaks_ep_sig$log2FoldChange,zic1_kd_peaks_ep_sig$zic1_log2FoldChange),3),x = -0.8,y=-2.5) +
+  ylab("Zic1 RNA-seq log2FC(KD/Ctrl)") +
+  xlab("Zic CUT&RUN log2FC(DIV7/DIV1)") +
+  theme_classic() +
+  theme(aspect.ratio = 1) +
+  scale_color_manual(values = c("FALSE" ="gray","TRUE" = "blue"))
+```
+```{r}
+zic2_kd_peaks_ep_sig %>%
+  ggplot(aes( y = zic2_log2FoldChange, x = log2FoldChange)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_smooth(method = "lm", se = FALSE , color = "black") +
+  annotate(geom = "text", label = round(cor(zic2_kd_peaks_ep_sig$log2FoldChange,zic2_kd_peaks_ep_sig$zic2_log2FoldChange),3),x = -0.8,y=-2.5) +
+  ylab("Zic2 RNA-seq log2FC(KD/Ctrl)") +
+  xlab("Zic CUT&RUN log2FC(DIV7/DIV1)") +
+  theme_classic() +
+  theme(aspect.ratio = 1) +
+  scale_color_manual(values = c("FALSE" ="gray","TRUE" = "blue"))
+```
 
 
 Notes:
